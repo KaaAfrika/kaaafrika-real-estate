@@ -16,11 +16,7 @@ export function Header() {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-blue-500 to-yellow-400 rounded-lg transform rotate-45" />
-              <div className="absolute inset-1 bg-gradient-to-br from-red-500 via-purple-600 to-blue-500 rounded-lg transform rotate-45" />
-            </div>
-            <span className="text-2xl font-bold text-primary">KaaAfrika</span>
+            <img src="/horizontal_logo.svg" alt="KaaAfrika Logo" className="h-8 w-auto" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

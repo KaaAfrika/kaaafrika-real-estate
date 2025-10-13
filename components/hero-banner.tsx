@@ -19,7 +19,7 @@ export function HeroBanner() {
         </svg>
       </div>
       <div className="relative py-16 px-8 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 text-balance">KaaaAfrika Resto</h1>
+        <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 text-balance">KaaAfrika Live</h1>
         <p className="text-xl text-white/90">Find Your Perfect Property</p>
       </div>
     </div>

@@ -58,7 +58,7 @@ export function PropertyCard({
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-2xl font-bold text-primary">${price.toLocaleString()}</span>
+            <span className="text-xl font-bold text-primary">₦ {price.toLocaleString()}</span>
             <span className="text-sm text-muted-foreground ml-1">Negotiable</span>
           </div>
           <Link href={`/property/${id}`}>
