@@ -7,12 +7,11 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { fetchPropertyById, RawPropertyData, OwnerInfo } from "@/services/propertyService"
-
 import { useParams } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 
 const recommendedProperties = [
-  // ... (kept as is)
+
   {
     id: "7",
     title: "Glass Horizon",

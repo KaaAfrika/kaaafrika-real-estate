@@ -1,10 +1,8 @@
+"use client"
 import { Header } from "@/components/header"
 import { ArrowLeft, MapPin, Eye, Calendar } from "lucide-react"
 import Link from "next/link"
-"use client"
 import Image from "next/image"
-
-
 import { useEffect, useState } from "react"
 import { fetchProperties } from "@/services/propertyService"
 
