@@ -5,11 +5,29 @@ import { usePathname } from "next/navigation"
 import { Heart, Bell } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useEffect, useState } from "react"
+import { getProfile } from "@/services/authService"
+import { AxiosError } from "axios"
 
 export function Header() {
+  const [profileData, setProfileData] = useState()
   const pathname = usePathname()
 
   const isActive = (path: string) => pathname === path
+
+  const getProfileData = async() => {
+    try{
+      const data = await getProfile()
+      console.log("Profileeeeeeeeeeeeeeeee")
+      console.log("Dataaaaaaaaaaaaaaaaaaaaaaa",data)
+    } catch (error) {
+      console.log(error)
+    }
+  } 
+
+  useEffect(() => {
+    getProfileData()
+  }, [])
 
   return (
     <header className="border-b bg-white">
