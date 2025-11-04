@@ -1,52 +1,14 @@
 "use client";
 
-import React, { useState, ChangeEvent } from "react";
+import { useState, ChangeEvent } from "react";
 import { X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
+import { createProperty, uploadMedia } from "@/services/propertyService";
 
-// Use an env var for API base. Set NEXT_PUBLIC_API_BASE in your .env
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "https://your-api-base.com";
 
-/* --------------------------- Service functions --------------------------- */
-// These are minimal implementations using fetch. Replace with your api wrapper if you have one.
-export async function createProperty(propertyData: Record<string, any>) {
-  const res = await fetch(`${API_BASE}/properties`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(propertyData),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`createProperty failed: ${res.status} ${text}`);
-  }
-
-  return res.json();
-}
-
-// Upload media endpoint expects FormData. Returns { url: string }
-export async function uploadMedia(mediaData: FormData) {
-  const res = await fetch(`${API_BASE}/media`, {
-    method: "POST",
-    // IMPORTANT: do NOT set Content-Type header when sending FormData; browser sets the multipart boundary
-    body: mediaData,
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`uploadMedia failed: ${res.status} ${text}`);
-  }
-
-  return res.json();
-}
-/* ------------------------------------------------------------------------- */
-
-const MAX_IMAGES = 10;
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB per file - change as needed
 
 type FormState = {
   title: string;
@@ -62,6 +24,8 @@ type FormState = {
   negotiable: string;
   contact_email: string;
   contact_phone_number: string;
+  // REMOVED: image_urls_text: string;
+  // REMOVED: proof_urls_text: string;
 };
 
 export default function ListPropertyPage() {
@@ -81,13 +45,16 @@ export default function ListPropertyPage() {
     city: "",
     street_address: "",
     price: "",
-    negotiable: "Not Negotiable",
+    negotiable: "Not Negotiable", // Defaulted value
     contact_email: "",
     contact_phone_number: "",
+    // REMOVED: image_urls_text and proof_urls_text initialization
   });
 
+  // Separate lists for uploaded URLs - these are the source of truth for media
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadedProofs, setUploadedProofs] = useState<string[]>([]);
+
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadingProofs, setUploadingProofs] = useState(false);
 
@@ -137,9 +104,10 @@ export default function ListPropertyPage() {
       negotiable: form.negotiable.trim() || "Not Negotiable",
       contact_email: form.contact_email.trim() || undefined,
       contact_phone_number: form.contact_phone_number.trim(),
+      // Use the uploaded URL arrays directly
       image_urls: uploadedImages,
       proof_of_ownership_urls: uploadedProofs,
-    } as const;
+    };
 
     try {
       setLoading(true);
@@ -153,104 +121,138 @@ export default function ListPropertyPage() {
     }
   };
 
-  // Generic uploader with client-side validation and concurrent uploads (limited)
-  const uploadFiles = async (
-    files: FileList | null,
-    mediaFor: string,
-    onStart: () => void,
-    onFinish: () => void,
-    onAddUrls: (urls: string[]) => void,
-    inputElement: HTMLInputElement | null
-  ) => {
-    if (!files || files.length === 0) return;
-    setError(null);
-    onStart();
+  // inside your component file (or a helper imported by it)
+const MAX_IMAGES = 10;
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB max (adjust if needed)
 
-    try {
-      const validFiles: File[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        if (f.size > MAX_FILE_SIZE_BYTES) {
-          setError(`File ${f.name} is too large (max 10MB)`);
-          continue;
-        }
-        validFiles.push(f);
+async function uploadFiles(
+  files: FileList | null,
+  mediaFor: string,
+  onStart: () => void,
+  onFinish: () => void,
+  onAddUrls: (urls: string[]) => void,
+  inputElement: HTMLInputElement | null
+) {
+  if (!files || files.length === 0) return;
+  setError(null);
+  onStart();
+
+  try {
+    // Validate & prepare file array
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (f.size > MAX_FILE_SIZE_BYTES) {
+        // skip large files but inform user
+        setError(`File ${f.name} exceeds maximum size of 10MB`);
+        continue;
       }
-
-      // enforce max images when uploading images
-      if (mediaFor === "property") {
-        const remaining = MAX_IMAGES - uploadedImages.length;
-        if (validFiles.length > remaining) validFiles.splice(remaining);
-      }
-
-      // upload concurrently but safely using Promise.all
-      const uploadPromises = validFiles.map(async (file) => {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append(
-          "type",
-          file.type.startsWith("image/")
-            ? "image"
-            : file.type.includes("pdf")
-            ? "document"
-            : "document"
-        );
-        fd.append("media_for", mediaFor);
-
-        const res = await uploadMedia(fd);
-
-        // accept several response shapes
-        const url =
-          (res && (res.url || res.data?.url)) ||
-          (typeof res === "string" ? res : null);
-        if (!url) throw new Error("Upload returned no url");
-        return url as string;
-      });
-
-      const urls = await Promise.all(uploadPromises);
-      if (urls.length) onAddUrls(urls);
-    } catch (err: any) {
-      console.error("upload error:", err);
-      setError(err?.message || "Failed to upload files");
-    } finally {
-      onFinish();
-      if (inputElement) inputElement.value = ""; // reset to allow re-upload same file
+      validFiles.push(f);
     }
-  };
 
-  const handleImageFilesSelected = (e: ChangeEvent<HTMLInputElement>) =>
+    // If uploading property images, enforce MAX_IMAGES limit
+    if (mediaFor === "property") {
+      const remaining = MAX_IMAGES - uploadedImages.length;
+      if (remaining <= 0) {
+        setError(`You can only upload up to ${MAX_IMAGES} images`);
+        return;
+      }
+      if (validFiles.length > remaining) {
+        validFiles.splice(remaining); // keep first `remaining` files
+      }
+    }
+
+    // Create an array of upload promises (concurrent)
+    const uploadPromises = validFiles.map(async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      // server may expect specific 'type' values - adjust if needed
+      const inferredType = file.type.startsWith("image/")
+        ? "image"
+        : file.type.includes("pdf")
+        ? "document"
+        : "document";
+      fd.append("type", inferredType);
+      fd.append("media_for", mediaFor);
+      // extra helpful metadata for server validation
+      fd.append("mime_type", file.type || "application/octet-stream");
+      fd.append("original_name", file.name);
+
+      // call your axios-based uploadMedia
+      const res = await uploadMedia(fd);
+
+      // Accept multiple possible shapes: { url }, { data: { url } }, or raw string
+      const url =
+        (res && (res.url || res.data?.url)) ||
+        (typeof res === "string" ? res : null);
+
+      if (!url) {
+        console.warn("[uploadFiles] upload returned no url:", res);
+        throw new Error("Upload did not return a usable url");
+      }
+
+      return url as string;
+    });
+
+    const urls = await Promise.all(uploadPromises);
+    if (urls.length > 0) onAddUrls(urls);
+  } catch (err: any) {
+    console.error("[uploadFiles] error:", err);
+    setError(err?.message || "Failed to upload files");
+  } finally {
+    onFinish();
+    // Clear input element so user can re-select same files if needed
+    if (inputElement) inputElement.value = "";
+  }
+}
+
+
+  
+
+  // image handlers
+  const handleImageFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
     uploadFiles(
       e.target.files,
-      "property",
+      "property", // mediaFor
       () => setUploadingImages(true),
       () => setUploadingImages(false),
-      (urls) => setUploadedImages((p) => [...p, ...urls]),
-      e.target
+      (urls) => {
+        setUploadedImages((prev) => [...prev, ...urls]); // Simplified update
+      },
+      e.target // Pass the input element for clearing
     );
+  }
 
+  // proof handlers
   const handleProofFilesSelected = (e: ChangeEvent<HTMLInputElement>) =>
     uploadFiles(
       e.target.files,
-      "proof",
+      "proof", // mediaFor
       () => setUploadingProofs(true),
       () => setUploadingProofs(false),
-      (urls) => setUploadedProofs((p) => [...p, ...urls]),
-      e.target
+      (urls) => {
+        setUploadedProofs((prev) => [...prev, ...urls]); // Simplified update
+      },
+      e.target // Pass the input element for clearing
     );
 
-  const removeUploadedImage = (idx: number) =>
+  const removeUploadedImage = (idx: number) => {
     setUploadedImages((p) => {
       const arr = [...p];
       arr.splice(idx, 1);
+      // REMOVED: handleChange("image_urls_text", arr.join("\\n"));
       return arr;
     });
+  };
 
-  const removeUploadedProof = (idx: number) =>
+  const removeUploadedProof = (idx: number) => {
     setUploadedProofs((p) => {
       const arr = [...p];
       arr.splice(idx, 1);
+      // REMOVED: handleChange("proof_urls_text", arr.join("\\n"));
       return arr;
     });
+  };
 
   if (showSuccess) {
     return (
@@ -308,7 +310,9 @@ export default function ListPropertyPage() {
           </p>
         </div>
 
-        {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+        {error && (
+          <p className="text-sm text-center text-red-600 mb-4">{error}</p>
+        )}
 
         <div className="space-y-4">
           <Input
@@ -353,6 +357,7 @@ export default function ListPropertyPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            {/* These should ideally be Select components */}
             <Input
               value={form.listing_type}
               onChange={(e) => handleChange("listing_type", e.target.value)}
@@ -399,7 +404,7 @@ export default function ListPropertyPage() {
             <Input
               value={form.contact_email}
               onChange={(e) => handleChange("contact_email", e.target.value)}
-              placeholder="Contact email (optional)"
+              placeholder="Contact email"
               className="h-12 rounded-xl bg-muted/50 border-0"
             />
             <Input
@@ -412,8 +417,9 @@ export default function ListPropertyPage() {
             />
           </div>
 
-          {/* Uploads: Images & Proof */}
+          {/* ----------------- UPLOADS SECTION ----------------- */}
           <div className="pt-4 space-y-6">
+            {/* Property images upload */}
             <div>
               <label className="block mb-2 text-sm font-medium text-foreground">
                 Property Images **(Required)**
@@ -436,21 +442,17 @@ export default function ListPropertyPage() {
                       className="hidden"
                       id="image-upload-input"
                       onChange={handleImageFilesSelected}
-                      disabled={
-                        uploadingImages || uploadedImages.length >= MAX_IMAGES
-                      }
+                      disabled={uploadingImages || uploadedImages.length >= 10}
                     />
                     <Button
                       variant="outline"
                       asChild
-                      disabled={
-                        uploadingImages || uploadedImages.length >= MAX_IMAGES
-                      }
+                      disabled={uploadingImages || uploadedImages.length >= 10}
                     >
                       <span>
                         {uploadingImages
                           ? "Uploading..."
-                          : uploadedImages.length >= MAX_IMAGES
+                          : uploadedImages.length >= 10
                           ? "Max Images Reached"
                           : "Choose images"}
                       </span>
@@ -465,10 +467,11 @@ export default function ListPropertyPage() {
                 </div>
               </div>
 
+              {/* Display uploaded images as thumbnails */}
               {uploadedImages.length > 0 && (
                 <div className="space-y-2 mb-3">
                   <p className="text-sm text-muted-foreground">
-                    Uploaded image URLs
+                    Uploaded property images
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     {uploadedImages.map((u, i) => (
@@ -497,6 +500,7 @@ export default function ListPropertyPage() {
 
             <hr className="border-t border-muted" />
 
+            {/* Proof of ownership upload */}
             <div>
               <label className="block mb-2 text-sm font-medium text-foreground">
                 Proof of ownership (files)
@@ -542,6 +546,7 @@ export default function ListPropertyPage() {
                 </div>
               </div>
 
+              {/* Display proof URLs */}
               {uploadedProofs.length > 0 && (
                 <div className="space-y-2 mb-3">
                   <p className="text-sm text-muted-foreground">
@@ -559,6 +564,7 @@ export default function ListPropertyPage() {
                           rel="noreferrer"
                           className="truncate text-blue-600 hover:underline text-sm"
                         >
+                          {/* Display only the file name or a truncated URL for better readability */}
                           {u.split("/").pop() || u}
                         </a>
                         <button
@@ -582,7 +588,7 @@ export default function ListPropertyPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || uploadingImages || uploadingProofs}
+              disabled={loading || uploadingImages || uploadingProofs} // Disable if any upload is in progress
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full px-6"
             >
               {loading ? "Submitting..." : "Submit property"}

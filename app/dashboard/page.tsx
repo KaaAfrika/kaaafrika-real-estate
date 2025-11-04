@@ -129,7 +129,7 @@ export default function DashboardPage() {
       city: "",
       state: "",
       min: 0,
-      max: 0,
+      max: 1000000000,
       search: "",
       sort: "",
     };

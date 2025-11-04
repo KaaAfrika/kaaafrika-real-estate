@@ -30,7 +30,7 @@ export async function login(
   return res.json();
 }
 
-export async function getProfile(token: string) {
+export async function getProfile() {
   try {
     const res = await api.get(`${API_BASE}/auth/me`);
     return res.data;

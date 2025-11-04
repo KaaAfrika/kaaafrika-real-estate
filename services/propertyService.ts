@@ -58,29 +58,29 @@ export interface ISearchFilter {
   city?: string;
   state?: string;
   min?: number;
-  max?: number | null;
+  max?: number | string ;
   search?: string;
   sort?: string;
 }
 
 // lib/api.ts
 export type CreatePropertyBody = {
-  title: string
-  description: string
-  condition?: string
-  listing_type: string
-  category: string
-  country?: string
-  state?: string
-  city?: string
-  street_address?: string
-  price: number
-  negotiable?: string
-  contact_email?: string
-  contact_phone_number: string
-  image_urls?: string[]
-  proof_of_ownership_urls?: string[]
-}
+  title: string;
+  description: string;
+  condition?: string;
+  listing_type: string;
+  category: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  street_address?: string;
+  price: number;
+  negotiable?: string;
+  contact_email?: string;
+  contact_phone_number: string;
+  image_urls?: string[];
+  proof_of_ownership_urls?: string[];
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
@@ -121,14 +121,15 @@ export async function fetchProperties(
 export async function fetchPropertyById(id: string): Promise<RawPropertyData> {
   try {
     const res = await api.get(`${API_BASE}/properties/${id}`);
-    return res.data;
+    return res.data.data;
   } catch (error) {
     throw error;
   }
 }
 
-
-export async function createProperty(propertyData: Record<string, any>): Promise<any> {
+export async function createProperty(
+  propertyData: Record<string, any>
+): Promise<any> {
   try {
     const res = await api.post(`${API_BASE}/properties`, propertyData);
     return res.data;
@@ -138,11 +139,31 @@ export async function createProperty(propertyData: Record<string, any>): Promise
 }
 
 
-export async function uploadMedia(mediaData: Record<string, any>): Promise<any> {
+export async function uploadMedia(mediaData: FormData): Promise<any> {
   try {
+    // IMPORTANT: do NOT set Content-Type header manually here.
+    // Let axios/browser set the multipart boundary.
     const res = await api.post(`${API_BASE}/media`, mediaData);
     return res.data;
-  } catch (error) {
-    throw error;
+  } catch (err: any) {
+    console.error("[uploadMedia] axios error:", err);
+
+    // Surface backend validation errors if present
+    if (err?.response?.data) {
+      const data = err.response.data;
+      if (data.message || data.errors) {
+        const errMsg =
+          (typeof data.message === "string"
+            ? data.message
+            : JSON.stringify(data.message || "")) +
+          (data.errors ? ` — ${JSON.stringify(data.errors)}` : "");
+        throw new Error(errMsg);
+      }
+      // fallback: stringify the response body
+      throw new Error(JSON.stringify(data));
+    }
+
+    // final fallback
+    throw err;
   }
 }
