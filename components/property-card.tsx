@@ -1,73 +1,160 @@
-import Image from "next/image"
-import Link from "next/link"
-import { Heart, MapPin, Eye } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+"use client";
+
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { KeyboardEvent, MouseEvent } from "react";
+import { Heart, MapPin, Eye } from "lucide-react";
 
 interface PropertyCardProps {
-  id: string
-  title: string
-  address: string
-  price: number
-  views: string
-  image: string
-  agentName: string
-  agentAvatar: string
-  description: string
+  id: string;
+  title: string;
+  address?: string;
+  price: number;
+  views?: number | string;
+  image?: string;
+  agentName?: string;
+  agentAvatar?: string;
+  description?: string;
+  negotiable?: boolean;
 }
+
+const currencyFormat = (n: number) =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(n);
 
 export function PropertyCard({
   id,
   title,
-  address,
+  address = "",
   price,
-  views,
+  views = 0,
   image,
-  agentName,
+  agentName = "Agent",
   agentAvatar,
-  description,
+  description = "",
+  negotiable = false,
 }: PropertyCardProps) {
+  const router = useRouter();
+
+  // navigate to property details
+  function goToDetails() {
+    router.push(`/property/${id}`);
+  }
+
+  // Keyboard accessibility: Enter or Space should activate the card
+  function handleKeyDown(e: KeyboardEvent<HTMLElement>) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goToDetails();
+    }
+  }
+
+  // prevent navigation when interacting with the favorite button
+  function handleFavClick(e: MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation();
+    e.preventDefault();
+    // TODO: optimistic toggle favorite + API call
+    console.log("toggle favorite for", id);
+  }
+
   return (
-    <div className="bg-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+    <article
+      tabIndex={0}
+      role="link"
+      onClick={goToDetails}
+      onKeyDown={handleKeyDown}
+      className="bg-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+      aria-label={`View details for ${title}`}
+    >
       <div className="relative h-56 group">
-        <Image src={image || "/placeholder.svg"} alt={title} fill className="object-cover" />
-        <button className="absolute top-4 right-4 p-2 bg-white/90 hover:bg-white rounded-full transition-colors">
+        <Image
+          src={image ?? "/placeholder.svg"}
+          alt={title}
+          fill
+          className="object-cover"
+          placeholder="blur"
+          blurDataURL="/placeholder.svg"
+          sizes="(max-width: 768px) 100vw, 33vw"
+        />
+
+        <button
+          type="button"
+          onClick={handleFavClick}
+          aria-label="Add to favorites"
+          className="absolute top-4 right-4 p-2 bg-white/90 hover:bg-white rounded-full transition-colors z-10"
+        >
           <Heart className="h-5 w-5 text-primary" />
         </button>
       </div>
+
       <div className="p-5">
         <div className="flex items-start gap-3 mb-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={agentAvatar || "/placeholder.svg"} />
-            <AvatarFallback>{agentName[0]}</AvatarFallback>
-          </Avatar>
+          {/* Plain, ref-safe avatar to avoid ref warnings from third-party components */}
+          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+            {agentAvatar ? (
+              // next/image can't be used here with fixed 40x40 easily when inside rounded container with object-cover
+              <img
+                src={agentAvatar}
+                alt={agentName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="font-semibold">{agentName?.[0] ?? "A"}</span>
+            )}
+          </div>
+
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg text-foreground mb-1 truncate">{title}</h3>
+            <h3 className="font-semibold text-lg text-foreground mb-1 truncate">
+              {title}
+            </h3>
+
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
               <span className="truncate">{address}</span>
             </div>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
+
+        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+          {description}
+        </p>
+
         <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
           <div className="flex items-center gap-1">
             <Eye className="h-3.5 w-3.5" />
-            <span>{views} views</span>
+           <span>{new Intl.NumberFormat().format(Number(views ?? 0))} views</span>
+
           </div>
         </div>
+
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xl font-bold text-primary">₦ {price.toLocaleString()}</span>
-            <span className="text-sm text-muted-foreground ml-1">Negotiable</span>
+            <span className="text-xl font-bold text-primary">
+              {currencyFormat(price)}
+            </span>
+            {negotiable && (
+              <span className="text-sm text-muted-foreground ml-1">
+                Negotiable
+              </span>
+            )}
           </div>
-          <Link href={`/property/${id}`}>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6">
-              View Details
-            </Button>
-          </Link>
+
+          {/* Use native button to avoid refs being attached to a function component */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              goToDetails();
+            }}
+            className="rounded-full px-6 py-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            View Details
+          </button>
         </div>
       </div>
-    </div>
-  )
+    </article>
+  );
 }
