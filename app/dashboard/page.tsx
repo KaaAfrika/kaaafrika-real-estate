@@ -224,8 +224,8 @@ export default function DashboardPage() {
                     className="mt-1 w-full rounded-md border px-2 py-1"
                   >
                     <option value="">Any</option>
-                    <option value="rent">Rent</option>
-                    <option value="sale">Sale</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Sell">Sell</option>
                   </select>
                 </label>
 
