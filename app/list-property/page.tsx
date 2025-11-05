@@ -8,8 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { createProperty, uploadMedia } from "@/services/propertyService";
 
-
-
 type FormState = {
   title: string;
   description: string;
@@ -122,92 +120,89 @@ export default function ListPropertyPage() {
   };
 
   // inside your component file (or a helper imported by it)
-const MAX_IMAGES = 10;
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB max (adjust if needed)
+  const MAX_IMAGES = 10;
+  const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB max (adjust if needed)
 
-async function uploadFiles(
-  files: FileList | null,
-  mediaFor: string,
-  onStart: () => void,
-  onFinish: () => void,
-  onAddUrls: (urls: string[]) => void,
-  inputElement: HTMLInputElement | null
-) {
-  if (!files || files.length === 0) return;
-  setError(null);
-  onStart();
+  async function uploadFiles(
+    files: FileList | null,
+    mediaFor: string,
+    onStart: () => void,
+    onFinish: () => void,
+    onAddUrls: (urls: string[]) => void,
+    inputElement: HTMLInputElement | null
+  ) {
+    if (!files || files.length === 0) return;
+    setError(null);
+    onStart();
 
-  try {
-    // Validate & prepare file array
-    const validFiles: File[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      if (f.size > MAX_FILE_SIZE_BYTES) {
-        // skip large files but inform user
-        setError(`File ${f.name} exceeds maximum size of 10MB`);
-        continue;
+    try {
+      // Validate & prepare file array
+      const validFiles: File[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        if (f.size > MAX_FILE_SIZE_BYTES) {
+          // skip large files but inform user
+          setError(`File ${f.name} exceeds maximum size of 10MB`);
+          continue;
+        }
+        validFiles.push(f);
       }
-      validFiles.push(f);
+
+      // If uploading property images, enforce MAX_IMAGES limit
+      if (mediaFor === "property") {
+        const remaining = MAX_IMAGES - uploadedImages.length;
+        if (remaining <= 0) {
+          setError(`You can only upload up to ${MAX_IMAGES} images`);
+          return;
+        }
+        if (validFiles.length > remaining) {
+          validFiles.splice(remaining); // keep first `remaining` files
+        }
+      }
+
+      // Create an array of upload promises (concurrent)
+      const uploadPromises = validFiles.map(async (file) => {
+        const fd = new FormData();
+        fd.append("file", file);
+        // server may expect specific 'type' values - adjust if needed
+        const inferredType = file.type.startsWith("image/")
+          ? "image"
+          : file.type.includes("pdf")
+          ? "document"
+          : "document";
+        fd.append("type", inferredType);
+        fd.append("media_for", mediaFor);
+        // extra helpful metadata for server validation
+        fd.append("mime_type", file.type || "application/octet-stream");
+        fd.append("original_name", file.name);
+
+        // call your axios-based uploadMedia
+        const res = await uploadMedia(fd);
+
+        // Accept multiple possible shapes: { url }, { data: { url } }, or raw string
+        const url =
+          (res && (res.url || res.data?.url)) ||
+          (typeof res === "string" ? res : null);
+
+        if (!url) {
+          console.warn("[uploadFiles] upload returned no url:", res);
+          throw new Error("Upload did not return a usable url");
+        }
+
+        return url as string;
+      });
+
+      const urls = await Promise.all(uploadPromises);
+      if (urls.length > 0) onAddUrls(urls);
+    } catch (err: any) {
+      console.error("[uploadFiles] error:", err);
+      setError(err?.message || "Failed to upload files");
+    } finally {
+      onFinish();
+      // Clear input element so user can re-select same files if needed
+      if (inputElement) inputElement.value = "";
     }
-
-    // If uploading property images, enforce MAX_IMAGES limit
-    if (mediaFor === "property") {
-      const remaining = MAX_IMAGES - uploadedImages.length;
-      if (remaining <= 0) {
-        setError(`You can only upload up to ${MAX_IMAGES} images`);
-        return;
-      }
-      if (validFiles.length > remaining) {
-        validFiles.splice(remaining); // keep first `remaining` files
-      }
-    }
-
-    // Create an array of upload promises (concurrent)
-    const uploadPromises = validFiles.map(async (file) => {
-      const fd = new FormData();
-      fd.append("file", file);
-      // server may expect specific 'type' values - adjust if needed
-      const inferredType = file.type.startsWith("image/")
-        ? "image"
-        : file.type.includes("pdf")
-        ? "document"
-        : "document";
-      fd.append("type", inferredType);
-      fd.append("media_for", mediaFor);
-      // extra helpful metadata for server validation
-      fd.append("mime_type", file.type || "application/octet-stream");
-      fd.append("original_name", file.name);
-
-      // call your axios-based uploadMedia
-      const res = await uploadMedia(fd);
-
-      // Accept multiple possible shapes: { url }, { data: { url } }, or raw string
-      const url =
-        (res && (res.url || res.data?.url)) ||
-        (typeof res === "string" ? res : null);
-
-      if (!url) {
-        console.warn("[uploadFiles] upload returned no url:", res);
-        throw new Error("Upload did not return a usable url");
-      }
-
-      return url as string;
-    });
-
-    const urls = await Promise.all(uploadPromises);
-    if (urls.length > 0) onAddUrls(urls);
-  } catch (err: any) {
-    console.error("[uploadFiles] error:", err);
-    setError(err?.message || "Failed to upload files");
-  } finally {
-    onFinish();
-    // Clear input element so user can re-select same files if needed
-    if (inputElement) inputElement.value = "";
   }
-}
-
-
-  
 
   // image handlers
   const handleImageFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
@@ -221,7 +216,7 @@ async function uploadFiles(
       },
       e.target // Pass the input element for clearing
     );
-  }
+  };
 
   // proof handlers
   const handleProofFilesSelected = (e: ChangeEvent<HTMLInputElement>) =>
@@ -342,34 +337,57 @@ async function uploadFiles(
               placeholder="Price"
               className="h-12 rounded-xl bg-muted/50 border-0"
             />
-            <Input
+            <select
               value={form.negotiable}
               onChange={(e) => handleChange("negotiable", e.target.value)}
-              placeholder="Negotiable (Negotiable / Not Negotiable)"
-              className="h-12 rounded-xl bg-muted/50 border-0"
-            />
-            <Input
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3"
+            >
+              <option value="">Select Negotiable</option>
+              <option value="Negotiable">Negotiable</option>
+              <option value="Not Negotiable">Not Negotiable</option>
+            </select>
+
+            <select
               value={form.condition}
               onChange={(e) => handleChange("condition", e.target.value)}
-              placeholder="Condition (e.g. New, Used)"
-              className="h-12 rounded-xl bg-muted/50 border-0"
-            />
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3"
+            >
+              <option value="">Select Condition</option>
+              <option value="New">New</option>
+              <option value="Used">Used</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* These should ideally be Select components */}
-            <Input
+            <select
               value={form.listing_type}
               onChange={(e) => handleChange("listing_type", e.target.value)}
-              placeholder="Listing Type (Rent / Sale)"
-              className="h-12 rounded-xl bg-muted/50 border-0 pr-10"
-            />
-            <Input
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3 pr-10"
+            >
+              <option value="">Select Listing Type</option>
+              <option value="Rent">Rent</option>
+              <option value="Sale">Sale</option>
+            </select>
+
+            <select
               value={form.category}
               onChange={(e) => handleChange("category", e.target.value)}
-              placeholder="Category (Apartment / House / Land)"
-              className="h-12 rounded-xl bg-muted/50 border-0 pr-10"
-            />
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3 pr-10"
+            >
+              <option value="">Select Category</option>
+              <option value="Apartment">Apartment</option>
+              <option value="Roommate">Roommate</option>
+              <option value="House">House</option>
+              <option value="Villa">Villa</option>
+              <option value="Studio">Studio</option>
+              <option value="Duplex">Duplex</option>
+              <option value="Bungalow">Bungalow</option>
+              <option value="Commercial Property">Commercial Property</option>
+              <option value="Land">Land</option>
+              <option value="Office">Office</option>
+              <option value="Other">Other</option>
+              <option value="Guest House">Guest House</option>
+            </select>
           </div>
 
           <Input
