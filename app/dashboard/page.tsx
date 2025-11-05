@@ -149,16 +149,16 @@ export default function DashboardPage() {
           <HeroBanner />
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+        {/* <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
           <span className="flex items-center gap-1">
             <span className="text-primary">🏠</span> Home
           </span>
           <span>•</span>
           <span>📍 Calabar</span>
-        </div>
+        </div> */}
 
         <div className="flex flex-wrap items-center gap-4 mb-6">
-          <div className="flex gap-2">
+          {/* <div className="flex gap-2">
             <Button
               variant="default"
               className="bg-primary text-primary-foreground rounded-full"
@@ -174,7 +174,7 @@ export default function DashboardPage() {
             <Button variant="outline" className="rounded-full bg-transparent">
               Bungalo
             </Button>
-          </div>
+          </div> */}
           <div className="ml-auto">
             <Link href="/list-property">
               <Button className="bg-primary text-primary-foreground rounded-full">

@@ -46,7 +46,7 @@ export function Header() {
             >
               Home
             </Link>
-            <Link
+            {/* <Link
               href="/rent"
               className={`text-base font-medium transition-colors ${
                 isActive("/rent") ? "text-primary" : "text-foreground hover:text-primary"
@@ -61,7 +61,7 @@ export function Header() {
               }`}
             >
               Buy
-            </Link>
+            </Link> */}
             <Link
               href="/my-properties"
               className={`text-base font-medium transition-colors ${
@@ -73,13 +73,13 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-4">
-            <button className="relative p-2 hover:bg-secondary rounded-full transition-colors">
+            {/* <button className="relative p-2 hover:bg-secondary rounded-full transition-colors">
               <Heart className="h-5 w-5 text-foreground" />
             </button>
             <button className="relative p-2 hover:bg-secondary rounded-full transition-colors">
               <Bell className="h-5 w-5 text-foreground" />
               <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full" />
-            </button>
+            </button> */}
             <DropdownMenu>
               <DropdownMenuTrigger className="focus:outline-none">
                 <Avatar className="h-9 w-9 cursor-pointer">
