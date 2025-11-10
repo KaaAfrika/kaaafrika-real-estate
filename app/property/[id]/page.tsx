@@ -22,6 +22,7 @@ import {
   fetchPropertyById,
   RawPropertyData,
   OwnerInfo,
+  addFavorite,
 } from "@/services/propertyService";
 import { useParams } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
@@ -57,6 +58,31 @@ export default function PropertyDetailsPage() {
 
     loadProperty();
   }, [propertyId]);
+
+  const isFavorite = useMemo(() => {
+    const v: any = (property as any)?.is_favorite ?? (property as any)?.isFavourite ?? (property as any)?.is_favourite;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v === 1;
+    if (typeof v === 'string') return v.toLowerCase() === 'true' || v === '1';
+    return false;
+  }, [property]);
+
+  async function toggleFavorite() {
+    if (!property) return;
+    const next = !isFavorite;
+    // optimistic update
+    setProperty({ ...property, is_favorite: next } as any);
+    try {
+      const resp = await addFavorite(property.id);
+      const updated = (resp?.data?.is_favorite ?? resp?.is_favorite ?? resp?.isFavourite ?? resp?.is_favourite);
+      const resolved = typeof updated === 'boolean' ? updated : next;
+      setProperty((prev) => prev ? ({ ...prev, is_favorite: resolved } as any) : prev);
+    } catch (err) {
+      // revert on failure
+      setProperty({ ...property, is_favorite: !next } as any);
+      console.error("favorite toggle failed", err);
+    }
+  }
 
   // Helper to format the address
   const fullAddress = useMemo(() => {
@@ -189,20 +215,17 @@ export default function PropertyDetailsPage() {
                   {category} - {listing_type}
                 </span>
               </div>
-              <button className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-white rounded-full transition-colors">
-                {/* Favorite icon SVG */}
+              <button
+                onClick={toggleFavorite}
+                className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-white rounded-full transition-colors"
+                aria-label={property.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              >
                 <svg
-                  className="h-6 w-6 text-muted-foreground"
-                  fill="none"
+                  className={`h-6 w-6 ${isFavorite ? 'text-red-600 fill-red-600' : 'text-muted-foreground'}`}
                   viewBox="0 0 24 24"
-                  stroke="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                  />
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1 4.22 2.44C11.09 5 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
               </button>
               <Image
@@ -276,7 +299,7 @@ export default function PropertyDetailsPage() {
             </div>
 
             {/* Property Information (Kept Placeholder Info for lack of specific API fields) */}
-            <div>
+            {/* <div>
               <h2 className="text-xl font-semibold text-foreground mb-4">
                 Property Information
               </h2>
@@ -307,7 +330,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Description */}
             <div>
@@ -346,9 +369,9 @@ export default function PropertyDetailsPage() {
                         />
                       </svg>
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    {/* <div className="text-sm text-muted-foreground">
                       {contact_email || "Email not listed"}
-                    </div>
+                    </div> */}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -380,35 +403,17 @@ export default function PropertyDetailsPage() {
               <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full text-base font-medium">
                 Contact Owner ({ownerName})
               </Button>
-              <div className="mt-4 text-center text-sm text-muted-foreground">
+              {/* <div className="mt-4 text-center text-sm text-muted-foreground">
                 Phone:{" "}
                 <span className="font-medium">
                   {contact_phone_number || "N/A"}
                 </span>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
 
-        {/* Recommended Properties */}
-        <div className="mt-16">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-foreground">
-              Recommended for you
-            </h2>
-            <Link
-              href="/buy"
-              className="text-primary font-medium hover:underline"
-            >
-              View All
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommended.map((prop: any) => (
-              <PropertyCard key={prop.id} {...prop} />
-            ))}
-          </div>
-        </div>
+        
       </main>
     </div>
   );

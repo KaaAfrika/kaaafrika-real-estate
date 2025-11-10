@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/header";
 import { HeroBanner } from "@/components/hero-banner";
 import { PropertyCard } from "@/components/property-card";
@@ -8,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
-import { fetchProperties, ISearchFilter } from "@/services/propertyService";
+import { fetchProperties, ISearchFilter, addFavorite } from "@/services/propertyService";
 
 type ApiProperty = {
   id: number;
@@ -24,12 +25,17 @@ type ApiProperty = {
   category: string;
   listing_type: string;
   view_count: number;
+  is_favorite?: boolean;
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [properties, setProperties] = useState<ApiProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [firstPage, setFirstPage] = useState<number>(1);
+  const [lastPage, setLastPage] = useState<number>(9999);
 
   const [filters, setFilters] = useState<ISearchFilter>({
     page: 1,
@@ -61,8 +67,14 @@ export default function DashboardPage() {
       console.log("[loadProperties] calling with filters:", currentFilters);
       const res = await fetchProperties(currentFilters);
       console.log("[loadProperties] fetchProperties returned:", res);
-      const apiData = res?.data?.data || res?.data || [];
-      setProperties(apiData);
+      const payload: any = res?.data ?? res;
+      const container: any = payload?.data ?? payload;
+      const apiData: any[] = Array.isArray(container?.data) ? container.data : Array.isArray(container) ? container : [];
+      setProperties(apiData as ApiProperty[]);
+      const fp = container?.first_page ?? container?.firstPage ?? 1;
+      const lp = container?.last_page ?? container?.lastPage ?? (currentFilters.page || 1);
+      setFirstPage(typeof fp === 'number' && fp > 0 ? fp : 1);
+      setLastPage(typeof lp === 'number' && lp >= (currentFilters.page || 1) ? lp : (currentFilters.page || 1));
     } catch (err: any) {
       console.error("[loadProperties] error:", err);
       setError(err?.message || "Failed to load properties");
@@ -77,6 +89,15 @@ export default function DashboardPage() {
     loadProperties(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(filters)]); // stringify to compare nested object safely
+
+  // initialize page from URL on first render
+  useEffect(() => {
+    const p = Number(searchParams.get("page") || "1");
+    if (!Number.isNaN(p) && p > 0) {
+      setFilters((prev) => ({ ...prev, page: p }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // handle search input with debounce
   useEffect(() => {
@@ -138,7 +159,29 @@ export default function DashboardPage() {
   }
 
   function goToPage(nextPage: number) {
-    setFilters((prev) => ({ ...prev, page: nextPage }));
+    const target = Math.max(firstPage, Math.min(lastPage, nextPage));
+    setFilters((prev) => ({ ...prev, page: target }));
+    const q = new URLSearchParams(searchParams as any);
+    q.set("page", String(target));
+    router.push(`?${q.toString()}`);
+  }
+
+  function getPages(current: number, first: number, last: number) {
+    const c = Math.max(first, Math.min(last, current));
+    const maxButtons = 7;
+    const pages: (number | string)[] = [];
+    if (last - first + 1 <= maxButtons) {
+      for (let i = first; i <= last; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(first);
+    const start = Math.max(first + 1, c - 1);
+    const end = Math.min(last - 1, c + 1);
+    if (start > first + 1) pages.push('…');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < last - 1) pages.push('…');
+    pages.push(last);
+    return pages;
   }
 
   return (
@@ -371,18 +414,45 @@ export default function DashboardPage() {
                       agentName={""}
                       agentAvatar={"/placeholder.svg?height=40&width=40"}
                       views={(property.view_count ?? 0).toString()}
+                      isFavorite={!!property.is_favorite}
+                      onToggleFavorite={async (id, next) => {
+                        try {
+                          const resp = await addFavorite(Number(id))
+                          const updated = (resp?.data?.is_favorite ?? resp?.is_favorite ?? resp?.isFavourite ?? resp?.is_favourite)
+                          const resolved = typeof updated === 'boolean' ? updated : next
+                          setProperties((prev) => prev.map((p) => p.id.toString() === id ? { ...p, is_favorite: resolved } : p))
+                        } catch (err) {
+                          console.error('toggle favorite failed', err)
+                        }
+                      }}
                     />
                   </Link>
                 ))}
           </div>
         </div>
-
-        <div className="text-center">
-          <Button
-            variant="outline"
-            className="rounded-full px-8 bg-transparent"
-          >
-            View More
+        <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+          <Button variant="outline" className="rounded-full" onClick={() => goToPage((filters.page || 1) - 1)} disabled={(filters.page || 1) <= firstPage}>
+            Previous
+          </Button>
+          {getPages((filters.page || 1), firstPage, lastPage).map((p, idx) => (
+            typeof p === 'number' ? (
+              <Button
+                key={idx}
+                variant={(filters.page || 1) === p ? 'default' : 'outline'}
+                className="rounded-full min-w-10"
+                disabled={(filters.page || 1) === p}
+                onClick={() => goToPage(p)}
+              >
+                {p}
+              </Button>
+            ) : (
+              <Button key={idx} variant="outline" className="rounded-full" disabled>
+                {p as string}
+              </Button>
+            )
+          ))}
+          <Button variant="outline" className="rounded-full" onClick={() => goToPage((filters.page || 1) + 1)} disabled={(filters.page || 1) >= lastPage}>
+            Next
           </Button>
         </div>
       </main>

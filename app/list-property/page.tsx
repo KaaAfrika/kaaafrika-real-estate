@@ -18,12 +18,14 @@ type FormState = {
   state: string;
   city: string;
   street_address: string;
+  second_address: string;
   price: number | "";
   negotiable: string;
   contact_email: string;
   contact_phone_number: string;
-  // REMOVED: image_urls_text: string;
-  // REMOVED: proof_urls_text: string;
+  currency: string;
+  rent_cycle: string;
+  listed_by: string;
 };
 
 export default function ListPropertyPage() {
@@ -42,11 +44,14 @@ export default function ListPropertyPage() {
     state: "",
     city: "",
     street_address: "",
+    second_address: "",
     price: "",
     negotiable: "Not Negotiable", // Defaulted value
     contact_email: "",
     contact_phone_number: "",
-    // REMOVED: image_urls_text and proof_urls_text initialization
+    currency: "NGN", // default currency
+    rent_cycle: "", // default none
+    listed_by: "Owner", // default lister
   });
 
   // Separate lists for uploaded URLs - these are the source of truth for media
@@ -60,6 +65,17 @@ export default function ListPropertyPage() {
     key: K,
     value: FormState[K]
   ) => setForm((p) => ({ ...p, [key]: value }));
+
+  // Rent cycle and lister option lists (you asked these to be options)
+  const rentCycles = [
+    "Hourly",
+    "Daily",
+    "Monthly",
+    "Quarterly",
+    "Biannual",
+    "Yearly",
+  ];
+  const propertyListers = ["Owner", "Property Mgr", "Agent", "Tenant"];
 
   const validate = (): string | null => {
     if (!form.title.trim()) return "Title is required";
@@ -90,21 +106,25 @@ export default function ListPropertyPage() {
 
     const body = {
       title: form.title.trim(),
-      description: form.description.trim(),
-      condition: form.condition.trim() || "N/A",
-      listing_type: form.listing_type.trim(),
-      category: form.category.trim(),
+      street_address: form.street_address.trim(),
       country: form.country.trim() || undefined,
-      state: form.state.trim() || undefined,
-      city: form.city.trim() || undefined,
-      street_address: form.street_address.trim() || undefined,
+      state: form.state.trim() || "",
+      city: form.city.trim() || "",
+      second_address:
+        form.second_address.trim() === "" ? "_" : form.second_address.trim(),
+      currency: form.currency || "NGN",
+      rent_cycle: form.rent_cycle || "_",
       price: Number(form.price),
-      negotiable: form.negotiable.trim() || "Not Negotiable",
-      contact_email: form.contact_email.trim() || undefined,
       contact_phone_number: form.contact_phone_number.trim(),
-      // Use the uploaded URL arrays directly
+      contact_email: form.contact_email.trim() || undefined,
+      description: form.description.trim(),
+      condition: form.condition.trim(),
+      listing_type: form.listing_type.trim(),
+      negotiable: form.negotiable.trim() || "Not Negotiable",
       image_urls: uploadedImages,
       proof_of_ownership_urls: uploadedProofs,
+      category: form.category.trim(),
+      listed_by: form.listed_by.trim() || "Owner",
     };
 
     try {
@@ -235,7 +255,6 @@ export default function ListPropertyPage() {
     setUploadedImages((p) => {
       const arr = [...p];
       arr.splice(idx, 1);
-      // REMOVED: handleChange("image_urls_text", arr.join("\\n"));
       return arr;
     });
   };
@@ -244,7 +263,6 @@ export default function ListPropertyPage() {
     setUploadedProofs((p) => {
       const arr = [...p];
       arr.splice(idx, 1);
-      // REMOVED: handleChange("proof_urls_text", arr.join("\\n"));
       return arr;
     });
   };
@@ -337,6 +355,33 @@ export default function ListPropertyPage() {
               placeholder="Price"
               className="h-12 rounded-xl bg-muted/50 border-0"
             />
+
+            <select
+              value={form.currency}
+              onChange={(e) => handleChange("currency", e.target.value)}
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3"
+            >
+              <option value="NGN">NGN</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+            </select>
+
+            <select
+              value={form.rent_cycle}
+              onChange={(e) => handleChange("rent_cycle", e.target.value)}
+              className="h-12 rounded-xl bg-muted/50 border-0 px-3"
+            >
+              <option value="">Select Rent Cycle</option>
+              {rentCycles.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <select
               value={form.negotiable}
               onChange={(e) => handleChange("negotiable", e.target.value)}
@@ -356,9 +401,7 @@ export default function ListPropertyPage() {
               <option value="New">New</option>
               <option value="Used">Used</option>
             </select>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
             <select
               value={form.listing_type}
               onChange={(e) => handleChange("listing_type", e.target.value)}
@@ -368,7 +411,9 @@ export default function ListPropertyPage() {
               <option value="Rent">Rent</option>
               <option value="Sale">Sale</option>
             </select>
+          </div>
 
+          <div className="grid grid-cols-2 gap-3">
             <select
               value={form.category}
               onChange={(e) => handleChange("category", e.target.value)}
@@ -388,12 +433,19 @@ export default function ListPropertyPage() {
               <option value="Other">Other</option>
               <option value="Guest House">Guest House</option>
             </select>
+
+            <Input
+              value={form.street_address}
+              onChange={(e) => handleChange("street_address", e.target.value)}
+              placeholder="Street Address"
+              className="h-12 rounded-xl bg-muted/50 border-0 pr-10"
+            />
           </div>
 
           <Input
-            value={form.street_address}
-            onChange={(e) => handleChange("street_address", e.target.value)}
-            placeholder="Street Address"
+            value={form.second_address}
+            onChange={(e) => handleChange("second_address", e.target.value)}
+            placeholder="Second Address (optional)"
             className="h-12 rounded-xl bg-muted/50 border-0 pr-10"
           />
 
@@ -425,14 +477,27 @@ export default function ListPropertyPage() {
               placeholder="Contact email"
               className="h-12 rounded-xl bg-muted/50 border-0"
             />
-            <Input
-              value={form.contact_phone_number}
-              onChange={(e) =>
-                handleChange("contact_phone_number", e.target.value)
-              }
-              placeholder="Contact phone no"
-              className="h-12 rounded-xl bg-muted/50 border-0"
-            />
+            <div>
+              <Input
+                value={form.contact_phone_number}
+                onChange={(e) =>
+                  handleChange("contact_phone_number", e.target.value)
+                }
+                placeholder="Contact phone no"
+                className="h-12 rounded-xl bg-muted/50 border-0"
+              />
+              <select
+                value={form.listed_by}
+                onChange={(e) => handleChange("listed_by", e.target.value)}
+                className="mt-2 h-10 rounded-xl bg-muted/50 border-0 px-3 w-full"
+              >
+                {propertyListers.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* ----------------- UPLOADS SECTION ----------------- */}
@@ -582,7 +647,6 @@ export default function ListPropertyPage() {
                           rel="noreferrer"
                           className="truncate text-blue-600 hover:underline text-sm"
                         >
-                          {/* Display only the file name or a truncated URL for better readability */}
                           {u.split("/").pop() || u}
                         </a>
                         <button
@@ -606,7 +670,7 @@ export default function ListPropertyPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || uploadingImages || uploadingProofs} // Disable if any upload is in progress
+              disabled={loading || uploadingImages || uploadingProofs}
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full px-6"
             >
               {loading ? "Submitting..." : "Submit property"}
