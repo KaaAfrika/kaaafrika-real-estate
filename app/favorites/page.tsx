@@ -5,6 +5,7 @@ import { Header } from "@/components/header"
 import { PropertyCard } from "@/components/property-card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
 import { addFavorite, getFavorites } from "@/services/propertyService"
 
 type FavProperty = {
@@ -23,6 +24,7 @@ type FavProperty = {
 export default function FavoritesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const [properties, setProperties] = useState<FavProperty[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,7 +109,17 @@ export default function FavoritesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {properties.map((p) => (
-              <Link href={`/property/${p.id}`} key={p.id} passHref legacyBehavior>
+              <Link
+                href={`/property/${p.id}`}
+                key={p.id}
+                onClick={(e) => {
+                  const token = typeof window !== 'undefined' ? localStorage.getItem('kaa_token') : null
+                  if (!token) {
+                    e.preventDefault()
+                    toast({ title: 'Login required', description: 'Please login to view property details.' })
+                  }
+                }}
+              >
                 <PropertyCard
                   id={p.id.toString()}
                   title={p.title}

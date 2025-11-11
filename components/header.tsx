@@ -1,87 +1,104 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { Heart, Bell } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { useEffect, useState } from "react"
-import { getProfile } from "@/services/authService"
-import { AxiosError } from "axios"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Heart, Bell } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import { getProfile } from "@/services/authService";
+import { AxiosError } from "axios";
 
 export function Header() {
-  const [profileData, setProfileData] = useState()
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined)
-  const pathname = usePathname()
-  const router = useRouter()
+  const [profileData, setProfileData] = useState();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const isActive = (path: string) => pathname === path
+  const isActive = (path: string) => pathname === path;
 
-  const getProfileData = async() => {
-    try{
-      const data = await getProfile()
-      setProfileData(data)
+  const getProfileData = async () => {
+    try {
+      const data = await getProfile();
+      setProfileData(data);
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-  } 
+  };
 
   useEffect(() => {
     // Determine login state from localStorage token
-    const token = typeof window !== 'undefined' ? localStorage.getItem("kaa_token") : null
-    const loggedIn = !!token
-    setIsLoggedIn(loggedIn)
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("kaa_token") : null;
+    const loggedIn = !!token;
+    setIsLoggedIn(loggedIn);
 
     // Only fetch profile data if user is logged in to avoid 401 redirect
     if (loggedIn) {
-      getProfileData()
+      getProfileData();
       try {
-        const raw = localStorage.getItem('kaa_user')
+        const raw = localStorage.getItem("kaa_user");
         if (raw) {
-          const parsed: any = JSON.parse(raw)
-          const user = parsed?.user || parsed?.data?.user || parsed?.data
-          const medias = user?.medias
-          let url: string | undefined
+          const parsed: any = JSON.parse(raw);
+          const user = parsed?.user || parsed?.data?.user || parsed?.data;
+          const medias = user?.medias;
+          let url: string | undefined;
           if (Array.isArray(medias)) {
-            const profileMedia = medias.find((m: any) => m?.media_for === 'profile_image')
-            url = profileMedia?.url || profileMedia?.media_url || profileMedia?.path
-          } else if (medias && typeof medias === 'object') {
-            if (medias?.media_for === 'profile_image') {
-              url = medias?.url || medias?.media_url || medias?.path
+            const profileMedia = medias.find(
+              (m: any) => m?.media_for === "profile_image"
+            );
+            url =
+              profileMedia?.url ||
+              profileMedia?.media_url ||
+              profileMedia?.path;
+          } else if (medias && typeof medias === "object") {
+            if (medias?.media_for === "profile_image") {
+              url = medias?.url || medias?.media_url || medias?.path;
             }
           }
-          setAvatarUrl(url)
+          setAvatarUrl(url);
         }
       } catch {}
     }
-  }, [])
+  }, []);
 
   const handleLogout = () => {
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('kaa_token')
-        localStorage.removeItem('kaa_user')
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("kaa_token");
+        localStorage.removeItem("kaa_user");
       }
     } catch {}
-    setIsLoggedIn(false)
-    setAvatarUrl(undefined)
-    router.push('/login')
-  }
+    setIsLoggedIn(false);
+    setAvatarUrl(undefined);
+    router.push("/login");
+  };
 
   return (
     <header className="border-b bg-white">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/horizontal_logo.svg" alt="KaaAfrika Logo" className="h-8 w-auto" />
+            <img
+              src="/horizontal_logo.svg"
+              alt="KaaAfrika Logo"
+              className="h-8 w-auto"
+            />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
             <Link
               href="/"
               className={`text-base font-medium transition-colors ${
-                isActive("/") ? "text-primary" : "text-foreground hover:text-primary"
+                isActive("/")
+                  ? "text-primary"
+                  : "text-foreground hover:text-primary"
               }`}
             >
               Home
@@ -106,7 +123,9 @@ export function Header() {
               <Link
                 href="/my-properties"
                 className={`text-base font-medium transition-colors ${
-                  isActive("/my-properties") ? "text-primary" : "text-foreground hover:text-primary"
+                  isActive("/my-properties")
+                    ? "text-primary"
+                    : "text-foreground hover:text-primary"
                 }`}
               >
                 My Properties
@@ -116,7 +135,9 @@ export function Header() {
               <Link
                 href="/favorites"
                 className={`text-base font-medium transition-colors ${
-                  isActive("/favorites") ? "text-primary" : "text-foreground hover:text-primary"
+                  isActive("/favorites")
+                    ? "text-primary"
+                    : "text-foreground hover:text-primary"
                 }`}
               >
                 Favorites
@@ -134,25 +155,36 @@ export function Header() {
               <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full" />
             </button> */}
             {!isLoggedIn && (
-              <Link href="/login" className="text-base font-medium text-foreground hover:text-primary">Login</Link>
+              <Link
+                href="/login"
+                className="text-base font-medium text-foreground hover:text-primary"
+              >
+                Login
+              </Link>
             )}
             {isLoggedIn && (
               <DropdownMenu>
                 <DropdownMenuTrigger className="focus:outline-none">
-                  <Avatar className="h-9 w-9 cursor-pointer">
-                    <AvatarImage src={avatarUrl || "/placeholder.svg?height=36&width=36"} />
-                    <AvatarFallback>U</AvatarFallback>
-                  </Avatar>
+                  <img
+                    src={avatarUrl || "/placeholder-user.jpg"}
+                    alt="Profile"
+                    className="h-12 w-12 rounded-full object-cover border"
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem>
-                    <Link href="/profile" className="w-full">Profile</Link>
+                    <Link href="/profile" className="w-full">
+                      Profile
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>Settings</DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
                     className="hover:!bg-red-600 hover:!text-white focus:!bg-red-600 focus:!text-white"
-                    onSelect={(e) => { e.preventDefault(); handleLogout(); }}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      handleLogout();
+                    }}
                   >
                     Logout
                   </DropdownMenuItem>
@@ -163,5 +195,5 @@ export function Header() {
         </div>
       </div>
     </header>
-  )
+  );
 }

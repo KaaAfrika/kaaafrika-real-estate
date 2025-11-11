@@ -98,7 +98,7 @@ export function PropertyCard({
       <div className="p-5">
         <div className="flex items-start gap-3 mb-3">
           {/* Plain, ref-safe avatar to avoid ref warnings from third-party components */}
-          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+          {/* <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
             {agentAvatar ? (
               // next/image can't be used here with fixed 40x40 easily when inside rounded container with object-cover
               <img
@@ -109,7 +109,7 @@ export function PropertyCard({
             ) : (
               <span className="font-semibold">{agentName?.[0] ?? "A"}</span>
             )}
-          </div>
+          </div> */}
 
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-lg text-foreground mb-1 truncate">

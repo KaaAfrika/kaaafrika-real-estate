@@ -24,18 +24,27 @@ import {
   OwnerInfo,
   addFavorite,
 } from "@/services/propertyService";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 
 export default function PropertyDetailsPage() {
   const params = useParams();
   const propertyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const router = useRouter();
 
   const [property, setProperty] = useState<RawPropertyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // NEW: selected image index state (0 means first image)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
   useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kaa_token') : null;
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
     if (!propertyId) {
       setLoading(false);
       setError("No property ID provided.");
@@ -57,13 +66,21 @@ export default function PropertyDetailsPage() {
     };
 
     loadProperty();
-  }, [propertyId]);
+  }, [propertyId, router]);
+
+  // Reset selected image to 0 whenever property changes (so main image is first image by default)
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [property?.image_urls]);
 
   const isFavorite = useMemo(() => {
-    const v: any = (property as any)?.is_favorite ?? (property as any)?.isFavourite ?? (property as any)?.is_favourite;
-    if (typeof v === 'boolean') return v;
-    if (typeof v === 'number') return v === 1;
-    if (typeof v === 'string') return v.toLowerCase() === 'true' || v === '1';
+    const v: any =
+      (property as any)?.is_favorite ??
+      (property as any)?.isFavourite ??
+      (property as any)?.is_favourite;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number") return v === 1;
+    if (typeof v === "string") return v.toLowerCase() === "true" || v === "1";
     return false;
   }, [property]);
 
@@ -74,9 +91,15 @@ export default function PropertyDetailsPage() {
     setProperty({ ...property, is_favorite: next } as any);
     try {
       const resp = await addFavorite(property.id);
-      const updated = (resp?.data?.is_favorite ?? resp?.is_favorite ?? resp?.isFavourite ?? resp?.is_favourite);
-      const resolved = typeof updated === 'boolean' ? updated : next;
-      setProperty((prev) => prev ? ({ ...prev, is_favorite: resolved } as any) : prev);
+      const updated =
+        resp?.data?.is_favorite ??
+        resp?.is_favorite ??
+        resp?.isFavourite ??
+        resp?.is_favourite;
+      const resolved = typeof updated === "boolean" ? updated : next;
+      setProperty((prev) =>
+        prev ? ({ ...prev, is_favorite: resolved } as any) : prev
+      );
     } catch (err) {
       // revert on failure
       setProperty({ ...property, is_favorite: !next } as any);
@@ -144,17 +167,18 @@ export default function PropertyDetailsPage() {
     listing_type = "N/A",
   } = property;
 
-  // Determine main image and thumbnails (ONLY use actual extra URLs)
+  // images array (may be undefined, ensure array)
+  const images: string[] = Array.isArray(image_urls) ? image_urls : [];
+
+  // Determine main image from selectedImageIndex or placeholder
   const mainImage =
-    Array.isArray(image_urls) && image_urls.length > 0
-      ? image_urls[0]
+    images.length > 0 && images[selectedImageIndex]
+      ? images[selectedImageIndex]
       : "/placeholder.svg";
 
-  // NEW: thumbnails array will be empty unless there are actual extra image URLs
-  const thumbnails =
-    Array.isArray(image_urls) && image_urls.length > 1
-      ? image_urls.slice(1, 5)
-      : [];
+  // Thumbnails: show up to 4 additional images (but keep indices relative to `images` array)
+  const thumbnailIndices =
+    images.length > 1 ? images.slice(0, 5).map((_, i) => i) : []; // show up to 5 images (0..4) as thumbs if available
 
   // Format price robustly (price might be number or string)
   const priceNumber =
@@ -190,9 +214,9 @@ export default function PropertyDetailsPage() {
   // recommendedProperties fallback (ensure it exists)
   const recommended = (property as any)?.recommended_properties || [];
 
-  // Decide image column spans: if thumbnails exist, show thumbnail column
+  // Decide main image column span: if thumbnails exist, show thumbnail column
   const mainImageColSpan =
-    thumbnails.length > 0 ? "lg:col-span-2" : "lg:col-span-3";
+    thumbnailIndices.length > 0 ? "lg:col-span-2" : "lg:col-span-3";
 
   return (
     <div className="min-h-screen bg-background">
@@ -218,14 +242,22 @@ export default function PropertyDetailsPage() {
               <button
                 onClick={toggleFavorite}
                 className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-white rounded-full transition-colors"
-                aria-label={property.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                aria-label={
+                  property.is_favorite
+                    ? "Remove from favorites"
+                    : "Add to favorites"
+                }
               >
                 <svg
-                  className={`h-6 w-6 ${isFavorite ? 'text-red-600 fill-red-600' : 'text-muted-foreground'}`}
+                  className={`h-6 w-6 ${
+                    isFavorite
+                      ? "text-red-600 fill-red-600"
+                      : "text-muted-foreground"
+                  }`}
                   viewBox="0 0 24 24"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1 4.22 2.44C11.09 5 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1 4.22 2.44C11.09 5 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                 </svg>
               </button>
               <Image
@@ -237,21 +269,25 @@ export default function PropertyDetailsPage() {
             </div>
           </div>
 
-          {/* Thumbnails: only render if there are extra images */}
-          {thumbnails.length > 0 && (
-            <div className="space-y-4">
-              {thumbnails.map((thumb: string, index: number) => (
-                <div
-                  key={index}
-                  className="relative h-[90px] rounded-xl overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+          {/* Thumbnails: only render if there are images */}
+          {thumbnailIndices.length > 0 && (
+            <div className="lg:col-span-1 space-y-4 overflow-y-auto max-h-[400px]">
+              {thumbnailIndices.map((idx) => (
+                <button
+                  key={images[idx] + idx}
+                  onClick={() => setSelectedImageIndex(idx)}
+                  aria-label={`View image ${idx + 1}`}
+                  className={`relative h-[90px] rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity w-full block ${
+                    selectedImageIndex === idx ? "ring-2 ring-primary" : ""
+                  }`}
                 >
                   <Image
-                    src={thumb}
-                    alt={`${title} view ${index + 1}`}
+                    src={images[idx]}
+                    alt={`${title} view ${idx + 1}`}
                     fill
                     className="object-cover"
                   />
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -298,40 +334,6 @@ export default function PropertyDetailsPage() {
               </div>
             </div>
 
-            {/* Property Information (Kept Placeholder Info for lack of specific API fields) */}
-            {/* <div>
-              <h2 className="text-xl font-semibold text-foreground mb-4">
-                Property Information
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-muted/50 rounded-xl p-4 text-center">
-                  <Bed className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-foreground mb-1">
-                    3
-                  </div>
-                  <div className="text-sm text-muted-foreground">Beds Room</div>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-4 text-center">
-                  <Car className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-foreground mb-1">
-                    4
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Parking Space
-                  </div>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-4 text-center">
-                  <Waves className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-foreground mb-1">
-                    1
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Swimming pool
-                  </div>
-                </div>
-              </div>
-            </div> */}
-
             {/* Description */}
             <div>
               <h2 className="text-xl font-semibold text-foreground mb-3">
@@ -351,7 +353,7 @@ export default function PropertyDetailsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src={ownerPicture} />
+                    {/* <AvatarImage src={ownerPicture} /> */}
                     <AvatarFallback>{ownerInitials}</AvatarFallback>
                   </Avatar>
                   <div>
@@ -369,9 +371,6 @@ export default function PropertyDetailsPage() {
                         />
                       </svg>
                     </div>
-                    {/* <div className="text-sm text-muted-foreground">
-                      {contact_email || "Email not listed"}
-                    </div> */}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -403,17 +402,9 @@ export default function PropertyDetailsPage() {
               <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full text-base font-medium">
                 Contact Owner ({ownerName})
               </Button>
-              {/* <div className="mt-4 text-center text-sm text-muted-foreground">
-                Phone:{" "}
-                <span className="font-medium">
-                  {contact_phone_number || "N/A"}
-                </span>
-              </div> */}
             </div>
           </div>
         </div>
-
-        
       </main>
     </div>
   );

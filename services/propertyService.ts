@@ -184,7 +184,7 @@ export async function convertCredit(
   amount: number
 ): Promise<any> {
   try {
-    const res = await api.post(`${API_BASE}/credits/convert`, amount);
+    const res = await api.post(`${API_BASE}/credits/convert`, {amount}) ;
     return res.data;
   } catch (error) {
     throw error;
@@ -195,6 +195,15 @@ export async function creditBalance(
 ): Promise<any> {
   try {
     const res = await api.get(`${API_BASE}/credits/balance`);
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getCreditsHistory(page?: number): Promise<any> {
+  try {
+    const res = await api.get(`${API_BASE}/credits/history`, { params: page ? { page } : undefined });
     return res.data;
   } catch (error) {
     throw error;

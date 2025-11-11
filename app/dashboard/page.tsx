@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { fetchProperties, ISearchFilter, addFavorite } from "@/services/propertyService";
+import { useToast } from "@/hooks/use-toast";
 
 type ApiProperty = {
   id: number;
@@ -31,6 +32,7 @@ type ApiProperty = {
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const [properties, setProperties] = useState<ApiProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -395,8 +397,13 @@ export default function DashboardPage() {
                   <Link
                     href={`/property/${property.id}`}
                     key={property.id}
-                    passHref
-                    legacyBehavior
+                    onClick={(e) => {
+                      const token = typeof window !== 'undefined' ? localStorage.getItem('kaa_token') : null;
+                      if (!token) {
+                        e.preventDefault();
+                        toast({ title: 'Login required', description: 'Please login to view property details.' });
+                      }
+                    }}
                   >
                     <PropertyCard
                       id={property.id.toString()}
