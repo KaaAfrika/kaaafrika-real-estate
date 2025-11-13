@@ -16,6 +16,8 @@ interface PropertyCardProps {
   agentAvatar?: string;
   description?: string;
   negotiable?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: (id: string, next: boolean) => void;
 }
 
 const currencyFormat = (n: number) =>
@@ -36,6 +38,8 @@ export function PropertyCard({
   agentAvatar,
   description = "",
   negotiable = false,
+  isFavorite,
+  onToggleFavorite,
 }: PropertyCardProps) {
   const router = useRouter();
 
@@ -56,8 +60,9 @@ export function PropertyCard({
   function handleFavClick(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
     e.preventDefault();
-    // TODO: optimistic toggle favorite + API call
-    console.log("toggle favorite for", id);
+    if (onToggleFavorite) {
+      onToggleFavorite(id, !isFavorite);
+    }
   }
 
   return (
@@ -86,14 +91,14 @@ export function PropertyCard({
           aria-label="Add to favorites"
           className="absolute top-4 right-4 p-2 bg-white/90 hover:bg-white rounded-full transition-colors z-10"
         >
-          <Heart className="h-5 w-5 text-primary" />
+          <Heart className={`h-5 w-5 ${isFavorite ? 'text-red-600 fill-red-600' : 'text-primary'}`} />
         </button>
       </div>
 
       <div className="p-5">
         <div className="flex items-start gap-3 mb-3">
           {/* Plain, ref-safe avatar to avoid ref warnings from third-party components */}
-          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+          {/* <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
             {agentAvatar ? (
               // next/image can't be used here with fixed 40x40 easily when inside rounded container with object-cover
               <img
@@ -104,7 +109,7 @@ export function PropertyCard({
             ) : (
               <span className="font-semibold">{agentName?.[0] ?? "A"}</span>
             )}
-          </div>
+          </div> */}
 
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-lg text-foreground mb-1 truncate">

@@ -138,6 +138,17 @@ export async function createProperty(
   }
 }
 
+export async function deleteProperty(
+  propertyId: number
+): Promise<any> {
+  try {
+    const res = await api.post(`${API_BASE}/properties`, propertyId);
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
 
 export async function uploadMedia(mediaData: FormData): Promise<any> {
   try {
@@ -165,5 +176,67 @@ export async function uploadMedia(mediaData: FormData): Promise<any> {
 
     // final fallback
     throw err;
+  }
+}
+
+
+export async function convertCredit(
+  amount: number
+): Promise<any> {
+  try {
+    const res = await api.post(`${API_BASE}/credits/convert`, {amount}) ;
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function creditBalance(
+): Promise<any> {
+  try {
+    const res = await api.get(`${API_BASE}/credits/balance`);
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getCreditsHistory(page?: number): Promise<any> {
+  try {
+    const res = await api.get(`${API_BASE}/credits/history`, { params: page ? { page } : undefined });
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function addFavorite(
+  propertyId: number
+): Promise<any> {
+  try {
+    const res = await api.post(`${API_BASE}/properties/${propertyId}/favorites`);
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getFavorites(page?: number): Promise<any> {
+  try {
+    const res = await api.get(`${API_BASE}/properties/user/favorites`, { params: page ? { page } : undefined });
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function removeFavorite(
+  propertyId: number
+): Promise<any> {
+  try {
+    const res = await api.delete(`${API_BASE}/properties/${propertyId}/favorites`);
+    return res.data;
+  } catch (error) {
+    throw error;
   }
 }

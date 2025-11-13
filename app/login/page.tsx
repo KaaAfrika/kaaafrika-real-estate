@@ -36,6 +36,16 @@ export default function LoginPage() {
         localStorage.setItem('kaa_token', res.data.token)
         if (res?.data) {
           localStorage.setItem('kaa_user', JSON.stringify(res.data))
+          try {
+            const d: any = res.data
+            const user = d?.user || d?.data?.user || d?.data || d
+            const email = user?.email || d?.email || ''
+            const phone = user?.phone_number || d?.phone_number || ''
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('kaa_email', String(email || ''))
+              sessionStorage.setItem('kaa_phone', String(phone || ''))
+            }
+          } catch {}
         }
         router.push('/dashboard')
       }
