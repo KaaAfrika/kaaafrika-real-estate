@@ -222,7 +222,7 @@ export default function DashboardPage() {
           </div> */}
           <div className="ml-auto">
             <Link href="/list-property">
-              <Button className="bg-primary text-primary-foreground rounded-full">
+              <Button className="bg-[#4E008E] text-primary-foreground rounded-full">
                 + List Properties
               </Button>
             </Link>

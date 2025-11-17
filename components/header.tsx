@@ -18,6 +18,7 @@ export function Header() {
   const [profileData, setProfileData] = useState();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+  const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -83,7 +84,7 @@ export function Header() {
   return (
     <header className="border-b bg-white">
       <div className="container mx-auto px-4 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
+        <div className="flex h-16 md:h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img
               src="/horizontal_logo.svg"
@@ -146,7 +147,7 @@ export function Header() {
             {/* Credits nav removed */}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             {/* <button className="relative p-2 hover:bg-secondary rounded-full transition-colors">
               <Heart className="h-5 w-5 text-foreground" />
             </button>
@@ -191,8 +192,75 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+
+            {/* Mobile menu toggle */}
+            <button
+              type="button"
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen((v) => !v)}
+              className="md:hidden inline-flex items-center justify-center rounded-md p-2 text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring/50"
+            >
+              <span className="material-symbols-outlined text-[28px] leading-none">
+                {mobileOpen ? 'close' : 'menu'}
+              </span>
+            </button>
           </div>
         </div>
+
+        {/* Mobile navigation drawer */}
+        {mobileOpen && (
+          <div className="md:hidden pb-4">
+            <nav className="flex flex-col gap-2">
+              <Link
+                href="/"
+                onClick={() => setMobileOpen(false)}
+                className={`px-2 py-2 rounded-md text-base font-medium transition-colors ${
+                  isActive("/")
+                    ? 'bg-secondary text-foreground'
+                    : 'text-foreground hover:bg-secondary'
+                }`}
+              >
+                Home
+              </Link>
+              {isLoggedIn && (
+                <Link
+                  href="/my-properties"
+                  onClick={() => setMobileOpen(false)}
+                  className={`px-2 py-2 rounded-md text-base font-medium transition-colors ${
+                    isActive("/my-properties")
+                      ? 'bg-secondary text-foreground'
+                      : 'text-foreground hover:bg-secondary'
+                  }`}
+                >
+                  My Properties
+                </Link>
+              )}
+              {isLoggedIn && (
+                <Link
+                  href="/favorites"
+                  onClick={() => setMobileOpen(false)}
+                  className={`px-2 py-2 rounded-md text-base font-medium transition-colors ${
+                    isActive("/favorites")
+                      ? 'bg-secondary text-foreground'
+                      : 'text-foreground hover:bg-secondary'
+                  }`}
+                >
+                  Favorites
+                </Link>
+              )}
+              {!isLoggedIn && (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-2 py-2 rounded-md text-base font-medium text-foreground hover:bg-secondary"
+                >
+                  Login
+                </Link>
+              )}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );

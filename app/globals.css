@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Local font: Chantilly Serial Bold Italic from styles folder */
+@font-face {
+  font-family: 'Chantilly Serial';
+  src: url('../styles/Chantilly-Serial_BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+/* Allow using the same file when italic is not specified */
+@font-face {
+  font-family: 'Chantilly Serial';
+  src: url('../styles/Chantilly-Serial_BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
