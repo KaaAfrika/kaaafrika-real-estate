@@ -154,7 +154,7 @@ export function PropertyCard({
               e.stopPropagation();
               goToDetails();
             }}
-            className="rounded-full px-6 py-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="rounded-full px-6 py-2 bg-[#4E008E] hover:bg-primary/90 text-primary-foreground"
           >
             View Details
           </button>

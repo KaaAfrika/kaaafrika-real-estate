@@ -240,3 +240,15 @@ export async function removeFavorite(
     throw error;
   }
 }
+
+
+export async function deductCredits(
+  creditsData: Record<string, any>
+): Promise<any> {
+  try {
+    const res = await api.post(`${API_BASE}/admin/credits/manual-deduct-and-grant-access`, creditsData);
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
+}
