@@ -139,10 +139,10 @@ export async function createProperty(
 }
 
 export async function deleteProperty(
-  propertyId: number
+  propertyId: string
 ): Promise<any> {
   try {
-    const res = await api.post(`${API_BASE}/properties`, propertyId);
+    const res = await api.delete(`${API_BASE}/properties/${propertyId}`,);
     return res.data;
   } catch (error) {
     throw error;

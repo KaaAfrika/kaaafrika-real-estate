@@ -158,7 +158,7 @@ export default function MyPropertiesPage() {
                       setDeleteError(null);
                       setDeletingId(property.id);
                       try {
-                        await deleteProperty(property.id as number)
+                        await deleteProperty(property.id)
                         setProperties((prev) => prev.filter((p) => p.id !== property.id))
                       } catch (err: any) {
                         const raw = err?.response?.data
