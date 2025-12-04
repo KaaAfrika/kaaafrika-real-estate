@@ -38,7 +38,7 @@ export function HeroBanner() {
           className="text-4xl md:text-5xl font-bold text-white mb-3 text-balance"
           style={{ fontFamily: "Chantilly Serial" }}
         >
-          KaaAfrika Live
+          KaaAfrika Life
         </h1>
         <p className="text-xl text-white/90">Find Your Perfect Property</p>
       </div>
