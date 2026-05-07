@@ -17,6 +17,7 @@ type FavProperty = {
   country: string
   price: string
   image_urls: string[]
+  video_url?: string
   view_count?: number
   is_favorite?: boolean
 }
@@ -126,6 +127,7 @@ export default function FavoritesPage() {
                   address={`${p.city}, ${p.state}, ${p.country}`}
                   price={Number(p.price) || 0}
                   image={p.image_urls?.[0] || "/placeholder.svg"}
+                  videoUrl={p.video_url}
                   description={p.description}
                   agentName={""}
                   agentAvatar={"/placeholder.svg?height=40&width=40"}

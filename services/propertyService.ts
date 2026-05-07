@@ -31,6 +31,7 @@ export type RawPropertyData = {
   contact_email: string;
   contact_phone_number: string;
   image_urls: string[];
+  video_url?: string;
   proof_of_ownership_urls: string[];
   status: string;
   currency: string;
@@ -79,6 +80,7 @@ export type CreatePropertyBody = {
   contact_email?: string;
   contact_phone_number: string;
   image_urls?: string[];
+  video_url?: string;
   proof_of_ownership_urls?: string[];
 };
 

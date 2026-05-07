@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { KeyboardEvent, MouseEvent } from "react";
-import { Heart, MapPin, Eye } from "lucide-react";
+import { Heart, MapPin, Eye, Play } from "lucide-react";
 
 interface PropertyCardProps {
   id: string;
@@ -12,6 +12,7 @@ interface PropertyCardProps {
   price: number;
   views?: number | string;
   image?: string;
+  videoUrl?: string;
   agentName?: string;
   agentAvatar?: string;
   description?: string;
@@ -34,6 +35,7 @@ export function PropertyCard({
   price,
   views = 0,
   image,
+  videoUrl,
   agentName = "Agent",
   agentAvatar,
   description = "",
@@ -85,6 +87,17 @@ export function PropertyCard({
           sizes="(max-width: 768px) 100vw, 33vw"
         />
 
+        {videoUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
+            <div className="bg-white/90 p-2.5 rounded-full shadow-lg">
+              <Play className="h-6 w-6 text-primary fill-primary" />
+            </div>
+            <span className="absolute bottom-4 left-4 bg-primary text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+              VIDEO
+            </span>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={handleFavClick}
@@ -97,20 +110,6 @@ export function PropertyCard({
 
       <div className="p-5">
         <div className="flex items-start gap-3 mb-3">
-          {/* Plain, ref-safe avatar to avoid ref warnings from third-party components */}
-          {/* <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-            {agentAvatar ? (
-              // next/image can't be used here with fixed 40x40 easily when inside rounded container with object-cover
-              <img
-                src={agentAvatar}
-                alt={agentName}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="font-semibold">{agentName?.[0] ?? "A"}</span>
-            )}
-          </div> */}
-
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-lg text-foreground mb-1 truncate">
               {title}
@@ -131,7 +130,6 @@ export function PropertyCard({
           <div className="flex items-center gap-1">
             <Eye className="h-3.5 w-3.5" />
            <span>{new Intl.NumberFormat().format(Number(views ?? 0))} views</span>
-
           </div>
         </div>
 
@@ -147,7 +145,6 @@ export function PropertyCard({
             )}
           </div>
 
-          {/* Use native button to avoid refs being attached to a function component */}
           <button
             type="button"
             onClick={(e) => {

@@ -11,6 +11,7 @@ import {
   Mail,
   Phone,
   Loader2,
+  Play,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export default function PropertyDetails({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [viewType, setViewType] = useState<"image" | "video">("image");
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('kaa_token') : null;
@@ -63,6 +65,7 @@ export default function PropertyDetails({ id }: { id: string }) {
 
   useEffect(() => {
     setSelectedImageIndex(0);
+    setViewType("image");
   }, [property?.image_urls]);
 
   const isFavorite = useMemo(() => {
@@ -145,6 +148,7 @@ export default function PropertyDetails({ id }: { id: string }) {
     rent_cycle,
     category = "Unknown",
     image_urls,
+    video_url,
     view_count = 0,
     description,
     owner_info,
@@ -160,7 +164,7 @@ export default function PropertyDetails({ id }: { id: string }) {
       : "/placeholder.svg";
 
   const thumbnailIndices =
-    images.length > 1 ? images.slice(0, 5).map((_, i) => i) : [];
+    images.length > 0 ? images.slice(0, 5).map((_, i) => i) : [];
 
   const priceNumber =
     typeof price === "string"
@@ -190,8 +194,8 @@ export default function PropertyDetails({ id }: { id: string }) {
       .join("")
       .toUpperCase() || "PO";
 
-  const mainImageColSpan =
-    thumbnailIndices.length > 0 ? "lg:col-span-2" : "lg:col-span-3";
+  const hasThumbnails = thumbnailIndices.length > 0 || video_url;
+  const mainImageColSpan = hasThumbnails ? "lg:col-span-2" : "lg:col-span-3";
 
   return (
     <div className="min-h-screen bg-background">
@@ -207,7 +211,7 @@ export default function PropertyDetails({ id }: { id: string }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className={`${mainImageColSpan}`}>
-            <div className="relative h-[400px] rounded-2xl overflow-hidden mb-4">
+            <div className="relative h-[400px] rounded-2xl overflow-hidden mb-4 bg-muted flex items-center justify-center">
               <div className="absolute top-4 left-4 z-10">
                 <span className="bg-purple-100 text-primary px-4 py-1.5 rounded-full text-sm font-medium">
                   {category} - {listing_type}
@@ -229,23 +233,67 @@ export default function PropertyDetails({ id }: { id: string }) {
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1 4.22 2.44C11.09 5 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                 </svg>
               </button>
-              <Image
-                src={mainImage}
-                alt={title}
-                fill
-                className="object-cover"
-              />
+              
+              {viewType === "video" && video_url ? (
+                <video
+                  src={video_url}
+                  controls
+                  className="w-full h-full object-contain"
+                  poster={images[0] || "/placeholder.svg"}
+                  preload="metadata"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <Image
+                  src={mainImage}
+                  alt={title}
+                  fill
+                  className="object-cover"
+                />
+              )}
             </div>
           </div>
 
-          {thumbnailIndices.length > 0 && (
+          {hasThumbnails && (
             <div className="lg:col-span-1 space-y-4 overflow-y-auto max-h-[400px]">
+              {/* Video Thumbnail */}
+              {video_url && (
+                <button
+                  onClick={() => setViewType("video")}
+                  className={`relative h-[90px] rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity w-full block bg-black group ${
+                    viewType === "video" ? "ring-2 ring-primary" : ""
+                  }`}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <div className="bg-primary/80 rounded-full p-2 group-hover:scale-110 transition-transform text-white">
+                      <Play className="h-6 w-6 fill-current" />
+                    </div>
+                  </div>
+                  {images[0] && (
+                    <Image
+                      src={images[0]}
+                      alt="Video thumbnail"
+                      fill
+                      className="object-cover opacity-50"
+                    />
+                  )}
+                  <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-medium z-10">
+                    VIDEO
+                  </span>
+                </button>
+              )}
+
+              {/* Image Thumbnails */}
               {thumbnailIndices.map((idx) => (
                 <button
                   key={images[idx] + idx}
-                  onClick={() => setSelectedImageIndex(idx)}
+                  onClick={() => {
+                    setSelectedImageIndex(idx);
+                    setViewType("image");
+                  }}
                   className={`relative h-[90px] rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity w-full block ${
-                    selectedImageIndex === idx ? "ring-2 ring-primary" : ""
+                    viewType === "image" && selectedImageIndex === idx ? "ring-2 ring-primary" : ""
                   }`}
                 >
                   <Image

@@ -56,9 +56,11 @@ export default function ListPropertyPage() {
 
   // Separate lists for uploaded URLs - these are the source of truth for media
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedVideo, setUploadedVideo] = useState<string | null>(null);
   const [uploadedProofs, setUploadedProofs] = useState<string[]>([]);
 
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadingProofs, setUploadingProofs] = useState(false);
 
   const handleChange = <K extends keyof FormState>(
@@ -122,6 +124,7 @@ export default function ListPropertyPage() {
       listing_type: form.listing_type.trim(),
       negotiable: form.negotiable.trim() || "Not Negotiable",
       image_urls: uploadedImages,
+      video_url: uploadedVideo || undefined,
       proof_of_ownership_urls: uploadedProofs,
       category: form.category.trim(),
       listed_by: form.listed_by.trim() || "Owner",
@@ -158,11 +161,15 @@ export default function ListPropertyPage() {
     try {
       // Validate & prepare file array
       const validFiles: File[] = [];
+      const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB for video
+
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        if (f.size > MAX_FILE_SIZE_BYTES) {
-          // skip large files but inform user
-          setError(`File ${f.name} exceeds maximum size of 10MB`);
+        const isVideo = f.type.startsWith("video/");
+        const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_FILE_SIZE_BYTES;
+
+        if (f.size > maxSize) {
+          setError(`File ${f.name} exceeds maximum size of ${isVideo ? "50MB" : "100MB"}`);
           continue;
         }
         validFiles.push(f);
@@ -180,6 +187,11 @@ export default function ListPropertyPage() {
         }
       }
 
+      // If uploading property video, enforce 1 video limit
+      if (mediaFor === "video" && validFiles.length > 0) {
+        validFiles.splice(1); // keep only the first video
+      }
+
       // Create an array of upload promises (concurrent)
       const uploadPromises = validFiles.map(async (file) => {
         const fd = new FormData();
@@ -187,8 +199,8 @@ export default function ListPropertyPage() {
         // server may expect specific 'type' values - adjust if needed
         const inferredType = file.type.startsWith("image/")
           ? "image"
-          : file.type.includes("pdf")
-          ? "document"
+          : file.type.startsWith("video/")
+          ? "video"
           : "document";
         fd.append("type", inferredType);
         fd.append("media_for", mediaFor);
@@ -238,6 +250,20 @@ export default function ListPropertyPage() {
     );
   };
 
+  // video handlers
+  const handleVideoFileSelected = (e: ChangeEvent<HTMLInputElement>) => {
+    uploadFiles(
+      e.target.files,
+      "video", // mediaFor
+      () => setUploadingVideo(true),
+      () => setUploadingVideo(false),
+      (urls) => {
+        if (urls.length > 0) setUploadedVideo(urls[0]);
+      },
+      e.target
+    );
+  };
+
   // proof handlers
   const handleProofFilesSelected = (e: ChangeEvent<HTMLInputElement>) =>
     uploadFiles(
@@ -258,6 +284,8 @@ export default function ListPropertyPage() {
       return arr;
     });
   };
+
+  const removeUploadedVideo = () => setUploadedVideo(null);
 
   const removeUploadedProof = (idx: number) => {
     setUploadedProofs((p) => {
@@ -583,6 +611,72 @@ export default function ListPropertyPage() {
 
             <hr className="border-t border-muted" />
 
+            {/* Property video upload */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-foreground">
+                Property Video (Optional)
+              </label>
+              <div className="border-2 border-dashed border-muted rounded-xl p-6 text-center mb-3">
+                <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-muted-foreground mb-1">
+                  Upload property video
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Select a video file to upload. (Max 1 video, 50MB)
+                </p>
+
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <label htmlFor="video-upload-input">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      id="video-upload-input"
+                      onChange={handleVideoFileSelected}
+                      disabled={uploadingVideo || !!uploadedVideo}
+                    />
+                    <Button
+                      variant="outline"
+                      asChild
+                      disabled={uploadingVideo || !!uploadedVideo}
+                    >
+                      <span>
+                        {uploadingVideo
+                          ? "Uploading..."
+                          : uploadedVideo
+                          ? "Video Uploaded"
+                          : "Choose video"}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+
+              {/* Display uploaded video */}
+              {uploadedVideo && (
+                <div className="space-y-2 mb-3">
+                  <p className="text-sm text-muted-foreground">
+                    Uploaded property video
+                  </p>
+                  <div className="relative rounded overflow-hidden border p-2 flex items-center justify-between">
+                    <video
+                      src={uploadedVideo}
+                      className="h-24 w-auto rounded"
+                      muted
+                    />
+                    <button
+                      onClick={removeUploadedVideo}
+                      className="bg-red-50 text-red-600 hover:bg-red-100 rounded-full px-3 py-1 text-sm font-medium"
+                    >
+                      Remove Video
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <hr className="border-t border-muted" />
+
             {/* Proof of ownership upload */}
             <div>
               <label className="block mb-2 text-sm font-medium text-foreground">
@@ -670,7 +764,7 @@ export default function ListPropertyPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || uploadingImages || uploadingProofs}
+              disabled={loading || uploadingImages || uploadingVideo || uploadingProofs}
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full px-6"
             >
               {loading ? "Submitting..." : "Submit property"}
