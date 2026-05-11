@@ -1,6 +1,6 @@
 "use client"
 import { Header } from "@/components/header"
-import { ArrowLeft, MapPin, Eye, Calendar, Play } from "lucide-react"
+import { ArrowLeft, MapPin, Eye, Calendar } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
@@ -17,7 +17,6 @@ type ApiProperty = {
   country: string
   price: string
   image_urls: string[]
-  video_url?: string
   created_at: string
   status: string
   category: string
@@ -130,13 +129,6 @@ export default function MyPropertiesPage() {
                       fill
                       className="object-cover"
                     />
-                    {property.video_url && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                        <div className="bg-white/90 p-1.5 rounded-full shadow-sm">
-                          <Play className="h-4 w-4 text-primary fill-primary" />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
