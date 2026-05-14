@@ -430,7 +430,8 @@ export default function ListPropertyPage() {
               <option value="Commercial Property">Commercial Property</option>
               <option value="Land">Land</option>
               <option value="Office">Office</option>
-               <option value="Hotel">Hotel</option>
+              <option value="Hotel">Hotel</option>
+              <option value="Hotel">Hotel</option>
               <option value="Other">Other</option>
               <option value="Guest House">Guest House</option>
             </select>
