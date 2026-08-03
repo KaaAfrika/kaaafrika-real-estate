@@ -117,15 +117,17 @@ jobs:
           # version. So probe every plausible location once, here, and reuse the
           # absolute path — rather than re-globbing inside each ssh call and
           # failing with a bare "command not found" when the glob misses.
-          # Probe by RUNNING each candidate, not just testing -x. aaPanel's
-          # /www/server/nodejs/<ver>/bin/pm2 is a symlink into ../lib/node_modules,
-          # and when that target is removed the symlink survives — `ls` still lists
-          # it and executing it exits 127, indistinguishable from "not installed".
+          # Probe by RUNNING each candidate, not just testing -x — and run it with
+          # its own directory prepended to PATH. pm2's launcher starts with
+          # `#!/usr/bin/env node`, and aaPanel keeps node in that same bin dir,
+          # which is NOT on root's PATH in a non-interactive ssh session. Without
+          # the prefix the launcher dies with "env: node: No such file or
+          # directory" and exit 127 — identical to pm2 not being installed at all.
           # The trailing `true` matters: with no match the loop's last test is
           # false, so the remote script would exit 1 — and under `set -e` that
           # aborts this step AT the assignment, before the diagnostic below can
           # run. `|| PM2=""` covers the same hazard on the local side.
-          PM2=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" 'for c in /www/server/nodejs/*/bin/pm2 /usr/local/bin/pm2 /usr/bin/pm2 /usr/lib/node_modules/pm2/bin/pm2 $(command -v pm2 2>/dev/null); do [ -x "$c" ] && "$c" -v >/dev/null 2>&1 && { echo "$c"; exit 0; }; done; true') || PM2=""
+          PM2=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" 'for c in /www/server/nodejs/*/bin/pm2 /usr/local/bin/pm2 /usr/bin/pm2 /usr/lib/node_modules/pm2/bin/pm2 $(command -v pm2 2>/dev/null); do d=$(dirname "$c"); [ -x "$c" ] && PATH="$d:$PATH" "$c" -v >/dev/null 2>&1 && { echo "$c"; exit 0; }; done; true') || PM2=""
           if [ -z "$PM2" ]; then
             echo "pm2 not found on the VPS."
             echo "Searched: /www/server/nodejs/*/bin/pm2, /usr/local/bin/pm2, /usr/bin/pm2,"
@@ -136,13 +138,17 @@ jobs:
             exit 1
           fi
           echo "pm2: $PM2"
+          # Every later pm2 call needs node reachable for the same shebang reason,
+          # so carry the bin dir along on PATH.
+          PM2_DIR=$(dirname "$PM2")
+          PM2_ENV="PATH=$PM2_DIR:\$PATH"
 
           echo "== locate the pm2 app running from the deploy dir =="
           # Act ONLY on the app whose working dir IS the deploy dir — safe on a
           # box that runs other pm2 apps too (KaaOps lives on this same VPS).
           # stderr is deliberately NOT discarded here: swallowing it is what turned
           # a missing pm2 into an unexplained exit 127.
-          JLIST=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "'$PM2' jlist")
+          JLIST=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$PM2_ENV '$PM2' jlist")
           echo "-- pm2 apps (name / dir / script) --"
           printf '%s' "$JLIST" | jq -r '.[]|"  - \(.name) [id \(.pm_id)] cwd=\(.pm2_env.pm_cwd // .pm2_env.cwd // "?") exec=\(.pm2_env.pm_exec_path // "?")"'
           TARGET="${VPS_APP_PATH%/}"
@@ -154,7 +160,7 @@ jobs:
 
           if [ -n "$ID" ] && [ "$(basename "$EXEC")" = "server.js" ]; then
             echo "restarting pm2 id $ID — its cwd matches the deploy dir and it runs server.js"
-            ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "'$PM2' restart $ID --update-env"
+            ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$PM2_ENV '$PM2' restart $ID --update-env"
             # An existing process keeps the port it was started with, which is
             # not necessarily APP_PORT — health-check the one it actually uses.
             CHECK_PORT=$(printf '%s' "$MATCH" | jq -r '.pm2_env.PORT // .pm2_env.env.PORT // empty')
@@ -166,12 +172,13 @@ jobs:
               # and moving it would take the site down without touching nginx.
               echo "pm2 id $ID is in the deploy dir but runs '$EXEC', not server.js — re-creating '$NAME'"
               CHECK_PORT=$(printf '%s' "$MATCH" | jq -r '.pm2_env.PORT // .pm2_env.env.PORT // empty')
-              ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "'$PM2' delete $ID >/dev/null 2>&1 || true"
+              ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$PM2_ENV '$PM2' delete $ID >/dev/null 2>&1 || true"
             fi
             CHECK_PORT="${CHECK_PORT:-$APP_PORT}"
             echo "starting '$NAME' from the deploy dir on port $CHECK_PORT"
             ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "
               set -e
+              export $PM2_ENV
               cd '$VPS_APP_PATH'
               if [ ! -f server.js ]; then echo 'server.js not in deploy dir — is VPS_APP_PATH correct?'; ls -la | head; exit 1; fi
               '$PM2' delete '$NAME' >/dev/null 2>&1 || true
@@ -195,7 +202,7 @@ jobs:
               sleep 3
             done
             echo 'app did not return 200 on port $CHECK_PORT — check pm2 logs'
-            '$PM2' logs '$NAME' --lines 40 --nostream 2>/dev/null || '$PM2' logs --lines 40 --nostream || true
+            export $PM2_ENV; '$PM2' logs '$NAME' --lines 40 --nostream 2>/dev/null || '$PM2' logs --lines 40 --nostream || true
             exit 1
           "
 

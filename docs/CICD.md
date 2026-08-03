@@ -97,6 +97,30 @@ nginx also exists at `/etc/nginx`, and it is the one the `nginx` binary on
 The upstream port was originally `127.0.0.1:5` — nothing ever listened there,
 which is why the site returned 502 long before this pipeline existed.
 
+### pm2 needs node on PATH, and it is not there by default
+
+pm2 lives at `/www/server/nodejs/<version>/bin/pm2` and its launcher begins with
+`#!/usr/bin/env node`. aaPanel keeps `node` in that **same** directory, which is
+not on root's PATH in a non-interactive SSH session — so a bare
+
+```bash
+ssh root@vps /www/server/nodejs/v22.16.0/bin/pm2 list
+```
+
+fails with `env: node: No such file or directory` and **exit 127**, which is
+indistinguishable from pm2 not being installed. It is installed; it just cannot
+find its interpreter. Always prefix the call:
+
+```bash
+PATH=/www/server/nodejs/v22.16.0/bin:$PATH pm2 list
+```
+
+The workflow does this everywhere, and its probe validates candidates by
+running `pm2 -v` under that PATH rather than trusting `-x`.
+
+Note also that the version directory changes when aaPanel updates Node, so the
+path is resolved at deploy time rather than hardcoded.
+
 ## Why rsync runs with `--force`
 
 Built with pnpm, the standalone bundle carries `node_modules/next`, `react` and
