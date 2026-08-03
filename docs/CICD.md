@@ -78,6 +78,23 @@ change nginx to `proxy_pass http://127.0.0.1:3200;` and `nginx -s reload`. Only
 the bootstrap is affected — once the app exists in pm2, later deploys reuse
 whatever port it is already on.
 
+## Why rsync runs with `--force`
+
+Built with pnpm, the standalone bundle carries `node_modules/next`, `react` and
+`react-dom` as **relative symlinks** into `node_modules/.pnpm/`. They resolve
+inside the bundle, so they are fine to ship — but where the deploy directory
+still holds an older npm-style install, those same paths are real, non-empty
+directories, and rsync will not replace a directory with a symlink:
+
+```
+could not make way for new symlink: node_modules/next
+rsync error: some files/attrs were not transferred (code 23)
+```
+
+`--force` lets it delete just those in-the-way directories. It is **not**
+`--delete`: nothing else in the directory is removed, so `.user.ini` and any
+other panel-managed files survive.
+
 ## First deploy
 
 `VPS_APP_PATH` should be a directory that holds **only** this app's standalone

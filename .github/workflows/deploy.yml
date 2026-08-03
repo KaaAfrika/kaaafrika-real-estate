@@ -77,7 +77,15 @@ jobs:
 
           echo "== rsync bundle =="
           ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_APP_PATH'"
-          rsync -az -e "ssh $SSHOPTS" .next/standalone/ "$VPS_USER@$VPS_HOST:$VPS_APP_PATH/"
+          # --force: pnpm's node_modules layout means the bundle carries
+          # node_modules/{next,react,react-dom} as relative symlinks into
+          # .pnpm/. Where the deploy dir still holds an older npm-style install,
+          # those same paths are real non-empty directories, and rsync refuses to
+          # replace a directory with a symlink unless forced ("could not make way
+          # for new symlink", exit 23). This deletes only the directories standing
+          # in the way of a transfer — it is not --delete, so files the panel put
+          # there are left alone.
+          rsync -az --force -e "ssh $SSHOPTS" .next/standalone/ "$VPS_USER@$VPS_HOST:$VPS_APP_PATH/"
 
           # pm2 lives under aaPanel's node dir (not on PATH), so it's resolved by
           # glob, with a plain `pm2` as the fallback.
