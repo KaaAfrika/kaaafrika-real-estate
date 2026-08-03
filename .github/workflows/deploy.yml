@@ -1,0 +1,149 @@
+name: Deploy to VPS
+
+# Build the Next.js standalone bundle on every push to main and ship it to the
+# Hostinger VPS over SSH. The build always runs; the deploy step only runs once
+# the VPS_* secrets are set, so the first push builds green while you finish
+# configuring access. See docs/CICD.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# One deploy at a time; a newer push supersedes an in-flight one.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Job-level so it can gate the deploy step (secrets can't be used in `if`
+      # directly, but an env derived from one can).
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      # pm2 process name and the port it listens on. Only used when bootstrapping
+      # a fresh app — an existing process keeps whatever port it already has.
+      APP_NAME: kaaafrika-real-estate
+      APP_PORT: "3200"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (standalone)
+        env:
+          # The API base URL is currently hardcoded in services/Interceptor.ts,
+          # so nothing here is required. Set the repo Variable to override it
+          # once the code reads this — it is public config, not a secret.
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+        run: pnpm build
+
+      - name: Assemble the standalone bundle
+        # Next's standalone output ships server.js + a trimmed node_modules, but
+        # not static assets or public/ — they have to be copied in beside it.
+        run: |
+          cp -r public .next/standalone/public
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Deploy to the VPS
+        if: env.VPS_HOST != ''
+        env:
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          echo "$VPS_SSH_KEY" > "$HOME/.ssh/id_deploy"
+          chmod 600 "$HOME/.ssh/id_deploy"
+          PORT="${VPS_PORT:-22}"
+          # $HOME (not ~) — a tilde inside a quoted string is NOT expanded, which
+          # would make ssh look for a literal "~/.ssh" path and silently skip the key.
+          SSHOPTS="-i $HOME/.ssh/id_deploy -p $PORT -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+
+          echo "== preflight: confirm SSH login =="
+          ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "echo connected as \$(whoami)"
+
+          echo "== rsync bundle =="
+          ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_APP_PATH'"
+          rsync -az -e "ssh $SSHOPTS" .next/standalone/ "$VPS_USER@$VPS_HOST:$VPS_APP_PATH/"
+
+          # pm2 lives under aaPanel's node dir (not on PATH), so it's resolved by
+          # glob, with a plain `pm2` as the fallback.
+          RESOLVE_PM2='P=$(ls /www/server/nodejs/*/bin/pm2 2>/dev/null | head -1); [ -n "$P" ] || P=$(command -v pm2)'
+
+          echo "== locate the pm2 app running from the deploy dir =="
+          # Act ONLY on the app whose working dir IS the deploy dir — safe on a
+          # box that runs other pm2 apps too (KaaOps lives on this same VPS).
+          JLIST=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$RESOLVE_PM2"'; "$P" jlist 2>/dev/null')
+          echo "-- pm2 apps (name / dir / script) --"
+          printf '%s' "$JLIST" | jq -r '.[]|"  - \(.name) [id \(.pm_id)] cwd=\(.pm2_env.pm_cwd // .pm2_env.cwd // "?") exec=\(.pm2_env.pm_exec_path // "?")"'
+          TARGET="${VPS_APP_PATH%/}"
+          MATCH=$(printf '%s' "$JLIST" | jq -c --arg t "$TARGET" '[.[]|select(((.pm2_env.pm_cwd // .pm2_env.cwd // "")|sub("/+$";""))==$t)][0] // empty')
+          ID=$(printf '%s' "$MATCH" | jq -r '.pm_id // empty')
+          EXEC=$(printf '%s' "$MATCH" | jq -r '.pm2_env.pm_exec_path // ""')
+          NAME=$(printf '%s' "$MATCH" | jq -r '.name // empty')
+          NAME="${NAME:-$APP_NAME}"
+
+          if [ -n "$ID" ] && [ "$(basename "$EXEC")" = "server.js" ]; then
+            echo "restarting pm2 id $ID — its cwd matches the deploy dir and it runs server.js"
+            ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$RESOLVE_PM2"'; "$P" restart '"$ID"' --update-env'
+            # An existing process keeps the port it was started with, which is
+            # not necessarily APP_PORT — health-check the one it actually uses.
+            CHECK_PORT=$(printf '%s' "$MATCH" | jq -r '.pm2_env.PORT // .pm2_env.env.PORT // empty')
+          else
+            if [ -n "$ID" ]; then
+              # e.g. an aaPanel-created app running `next start`. That command
+              # cannot serve a standalone bundle, so re-point it at server.js.
+              # Keep whatever port it already had — nginx proxies to that port,
+              # and moving it would take the site down without touching nginx.
+              echo "pm2 id $ID is in the deploy dir but runs '$EXEC', not server.js — re-creating '$NAME'"
+              CHECK_PORT=$(printf '%s' "$MATCH" | jq -r '.pm2_env.PORT // .pm2_env.env.PORT // empty')
+              ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$RESOLVE_PM2"'; "$P" delete '"$ID"' >/dev/null 2>&1 || true'
+            fi
+            CHECK_PORT="${CHECK_PORT:-$APP_PORT}"
+            echo "starting '$NAME' from the deploy dir on port $CHECK_PORT"
+            ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "
+              set -e
+              $RESOLVE_PM2
+              cd '$VPS_APP_PATH'
+              if [ ! -f server.js ]; then echo 'server.js not in deploy dir — is VPS_APP_PATH correct?'; ls -la | head; exit 1; fi
+              \"\$P\" delete '$NAME' >/dev/null 2>&1 || true
+              PORT=$CHECK_PORT HOSTNAME=0.0.0.0 \"\$P\" start server.js --name '$NAME' --update-env
+              \"\$P\" save
+            "
+          fi
+
+          if [ -z "${CHECK_PORT:-}" ]; then
+            echo "== health check skipped: pm2 reports no PORT for this app =="
+            exit 0
+          fi
+
+          echo "== health check on port $CHECK_PORT =="
+          # Hit the app directly on the box, so this tests the deploy rather than
+          # DNS or the reverse proxy in front of it.
+          ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "
+            for i in \$(seq 1 10); do
+              CODE=\$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:$CHECK_PORT/ || true)
+              if [ \"\$CODE\" = '200' ]; then echo \"up — HTTP \$CODE on port $CHECK_PORT\"; exit 0; fi
+              sleep 3
+            done
+            echo 'app did not return 200 on port $CHECK_PORT — check pm2 logs'
+            $RESOLVE_PM2; \"\$P\" logs '$NAME' --lines 40 --nostream 2>/dev/null || \"\$P\" logs --lines 40 --nostream || true
+            exit 1
+          "
+
+      - name: Deploy skipped
+        if: env.VPS_HOST == ''
+        run: echo "VPS secrets not set yet — built only. Add them (docs/CICD.md) to enable deploy."

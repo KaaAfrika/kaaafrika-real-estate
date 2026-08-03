@@ -5,3 +5,7 @@ out
 .DS_Store
 kaaafrika_life
 kaaafrika_life.pub
+
+# Reference copy of the VPS deploy secrets. Holds a live private SSH key once
+# filled in — the pipeline reads the real values from GitHub Actions secrets.
+deploy/.env.vps
