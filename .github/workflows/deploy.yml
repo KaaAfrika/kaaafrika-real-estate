@@ -97,7 +97,11 @@ jobs:
           # /www/server/nodejs/<ver>/bin/pm2 is a symlink into ../lib/node_modules,
           # and when that target is removed the symlink survives — `ls` still lists
           # it and executing it exits 127, indistinguishable from "not installed".
-          PM2=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" 'for c in /www/server/nodejs/*/bin/pm2 /usr/local/bin/pm2 /usr/bin/pm2 /usr/lib/node_modules/pm2/bin/pm2 $(command -v pm2 2>/dev/null); do [ -x "$c" ] && "$c" -v >/dev/null 2>&1 && { echo "$c"; exit 0; }; done')
+          # The trailing `true` matters: with no match the loop's last test is
+          # false, so the remote script would exit 1 — and under `set -e` that
+          # aborts this step AT the assignment, before the diagnostic below can
+          # run. `|| PM2=""` covers the same hazard on the local side.
+          PM2=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" 'for c in /www/server/nodejs/*/bin/pm2 /usr/local/bin/pm2 /usr/bin/pm2 /usr/lib/node_modules/pm2/bin/pm2 $(command -v pm2 2>/dev/null); do [ -x "$c" ] && "$c" -v >/dev/null 2>&1 && { echo "$c"; exit 0; }; done; true') || PM2=""
           if [ -z "$PM2" ]; then
             echo "pm2 not found on the VPS."
             echo "Searched: /www/server/nodejs/*/bin/pm2, /usr/local/bin/pm2, /usr/bin/pm2,"
