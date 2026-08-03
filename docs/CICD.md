@@ -62,21 +62,40 @@ equals `VPS_APP_PATH`:
 
 `APP_NAME` and `APP_PORT` at the top of the workflow control that last case.
 
-## Match the port nginx proxies to
+In practice the first deploy hit the middle branch: aaPanel had `kaaafrika`
+running bare `npm` in that directory with no `PORT` in its environment, so there
+was no port to inherit and it was re-created on `APP_PORT` (3200). Every deploy
+since takes the first branch and inherits 3200 — the bootstrap path will not run
+again unless the pm2 entry is deleted.
 
-`life.kaaafrika.com` currently returns **502** — nginx is up and proxying, but
-nothing is listening on the upstream port. Since no pm2 app is running there, the
-first deploy takes the bootstrap path and starts on **3200**, which only clears
-the 502 if that is the port nginx already points at. Check it on the VPS:
+## How it is wired on the VPS
 
-```bash
-grep -rn proxy_pass /www/server/panel/vhost/nginx/life.kaaafrika.com.conf
-```
+Settled during the first deploy, and worth knowing before touching nginx:
 
-Then either set `APP_PORT` in the workflow to the port that appears there, or
-change nginx to `proxy_pass http://127.0.0.1:3200;` and `nginx -s reload`. Only
-the bootstrap is affected — once the app exists in pm2, later deploys reuse
-whatever port it is already on.
+| | |
+|---|---|
+| pm2 app | `kaaafrika` (the name aaPanel gave it — kept, not renamed) |
+| Port | `127.0.0.1:3200` |
+| Deploy dir | `/www/wwwroot/life.kaaafrika.com` |
+| vhost | `/www/server/panel/vhost/nginx/life.kaaafrika.com.conf` → `proxy_pass http://127.0.0.1:3200;` |
+
+**There are two nginx installations on this box, and only one of them runs.**
+The live one is aaPanel's, `/www/server/nginx/sbin/nginx`. A dormant distro
+nginx also exists at `/etc/nginx`, and it is the one the `nginx` binary on
+`$PATH` reads. That has two consequences:
+
+- **Reload with `/etc/init.d/nginx reload`.** `systemctl reload nginx` reports
+  `nginx.service is not active`, and `nginx -s reload` fails with
+  `invalid PID number "" in "/run/nginx.pid"` — it is signalling the wrong
+  instance, not reporting a real problem.
+- **Ignore `nginx -t` warnings about conflicting server names.** The
+  `conflicting server name "life.kaaafrika.com" on 0.0.0.0:80, ignored` warning
+  comes from duplicate vhosts inside the dormant `/etc/nginx` tree
+  (`sites-available/`, `conf.d/00-acme-challenge.conf`). It says nothing about
+  what is actually being served.
+
+The upstream port was originally `127.0.0.1:5` — nothing ever listened there,
+which is why the site returned 502 long before this pipeline existed.
 
 ## Why rsync runs with `--force`
 
