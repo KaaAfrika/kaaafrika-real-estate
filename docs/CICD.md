@@ -97,6 +97,39 @@ nginx also exists at `/etc/nginx`, and it is the one the `nginx` binary on
 The upstream port was originally `127.0.0.1:5` — nothing ever listened there,
 which is why the site returned 502 long before this pipeline existed.
 
+### aaPanel may revert the app to `npm start` — which cannot serve this bundle
+
+The pm2 entry has come back as `npm start` → `next start` at least once after the
+pipeline had already re-created it against `server.js`. That combination is
+broken and takes the site down: `next start` needs the full next package, but a
+deployed standalone bundle has `node_modules/next` as a pnpm symlink into
+`.pnpm/`, which carries only the trimmed copy `server.js` traced. It fails with:
+
+```
+Error: Cannot find module '../server/require-hook'
+  requireStack: [ '<deploy dir>/node_modules/next/dist/bin/next' ]
+```
+
+and then crash-loops on `next: command not found`. The next deploy repairs it,
+but the site is down until then. **Fix it at the source**: in aaPanel's Node
+project for the site, set the start command to `node server.js`, or take the
+project out of panel management so pm2 and this pipeline own it.
+
+Recovering by hand:
+
+```bash
+export PATH=/www/server/nodejs/v22.16.0/bin:$PATH
+cd /www/wwwroot/life.kaaafrika.com
+pm2 delete kaaafrika
+PORT=3200 HOSTNAME=0.0.0.0 pm2 start server.js --name kaaafrika --update-env
+pm2 save
+sleep 2 && curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3200/
+```
+
+Check on the box, not through the browser: nginx caches responses, so cached
+URLs keep returning 200 while everything uncached 502s. Compare `curl /path`
+against `curl '/path?cb=123'` — if they differ, the app is down.
+
 ### pm2 needs node on PATH, and it is not there by default
 
 pm2 lives at `/www/server/nodejs/<version>/bin/pm2` and its launcher begins with
