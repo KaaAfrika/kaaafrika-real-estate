@@ -148,7 +148,19 @@ jobs:
           # box that runs other pm2 apps too (KaaOps lives on this same VPS).
           # stderr is deliberately NOT discarded here: swallowing it is what turned
           # a missing pm2 into an unexplained exit 127.
-          JLIST=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$PM2_ENV '$PM2' jlist")
+          # pm2 prints advisory banners on STDOUT, not stderr — the in-memory vs
+          # CLI version mismatch ("In-memory PM2 is out-of-date") is the common
+          # one, and it lands ahead of the JSON where it breaks jq. Keep only the
+          # line that is itself a complete JSON array; pm2's other chatter
+          # ("[PM2] Done.") starts with [ but does not end with ].
+          JLIST_RAW=$(ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "$PM2_ENV '$PM2' jlist")
+          JLIST=$(printf '%s\n' "$JLIST_RAW" | grep -E '^\[.*\]$' | tail -1 || true)
+          if [ -z "$JLIST" ] || ! printf '%s' "$JLIST" | jq -e . >/dev/null 2>&1; then
+            echo "pm2 jlist did not return usable JSON. Raw output:"
+            printf '%s\n' "$JLIST_RAW" | head -20 | sed 's/^/  | /'
+            echo "The running app is untouched."
+            exit 1
+          fi
           echo "-- pm2 apps (name / dir / script) --"
           printf '%s' "$JLIST" | jq -r '.[]|"  - \(.name) [id \(.pm_id)] cwd=\(.pm2_env.pm_cwd // .pm2_env.cwd // "?") exec=\(.pm2_env.pm_exec_path // "?")"'
           TARGET="${VPS_APP_PATH%/}"
