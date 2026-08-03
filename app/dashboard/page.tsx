@@ -7,7 +7,7 @@ import { PropertyCard } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { fetchProperties, ISearchFilter, addFavorite } from "@/services/propertyService";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +54,8 @@ export default function DashboardPage() {
 
   // UI state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  // mobile-only: search starts collapsed to an icon
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // debounce for search
   const searchDebounceRef = useRef<number | null>(null);
@@ -202,49 +204,63 @@ export default function DashboardPage() {
           <span>📍 Calabar</span>
         </div> */}
 
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          {/* <div className="flex gap-2">
-            <Button
-              variant="default"
-              className="bg-primary text-primary-foreground rounded-full"
+        <div className="relative mb-12">
+          {/* Search + List Property share one row. On mobile the search
+              collapses to an icon and expands over the row when tapped. */}
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search for properties"
+              aria-expanded={searchOpen}
+              className={`${
+                searchOpen ? "hidden" : "flex"
+              } h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 transition-colors hover:bg-muted sm:hidden`}
             >
-              All
-            </Button>
-            <Button variant="outline" className="rounded-full bg-transparent">
-              House
-            </Button>
-            <Button variant="outline" className="rounded-full bg-transparent">
-              Apartment
-            </Button>
-            <Button variant="outline" className="rounded-full bg-transparent">
-              Bungalo
-            </Button>
-          </div> */}
-          <div className="ml-auto">
-            <Link href="/list-property">
-              <Button className="bg-[#4E008E] text-primary-foreground rounded-full">
-                + List Properties
+              <Search className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+            <div
+              className={`${
+                searchOpen ? "flex" : "hidden"
+              } relative min-w-0 flex-1 items-center sm:flex`}
+            >
+              <Search className="pointer-events-none absolute left-4 h-5 w-5 text-muted-foreground" />
+              <input
+                value={searchInput}
+                onChange={handleInputChange}
+                autoFocus={searchOpen}
+                placeholder="Search for properties"
+                className="h-12 w-full rounded-xl border-0 bg-muted/50 pl-12 pr-20 sm:pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(false);
+                  setSearchInput("");
+                }}
+                aria-label="Close search"
+                className="absolute right-12 sm:hidden"
+              >
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+              <button
+                onClick={openFilters}
+                aria-label="Open filters"
+                className="absolute right-4"
+              >
+                <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <Link
+              href="/list-property"
+              className={`${searchOpen ? "hidden" : "block"} shrink-0 sm:block`}
+            >
+              <Button className="h-12 whitespace-nowrap rounded-full bg-[#4E008E] px-6 text-primary-foreground hover:bg-[#4E008E]/90">
+                + List Property
               </Button>
             </Link>
-          </div>
-        </div>
-
-        <div className="relative mb-12">
-          <div className="relative mb-12">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <input
-              value={searchInput}
-              onChange={handleInputChange}
-              placeholder="Search for properties"
-              className="pl-12 pr-12 h-12 rounded-xl bg-muted/50 border-0 w-full"
-            />
-            <button
-              onClick={openFilters}
-              aria-label="Open filters"
-              className="absolute right-4 top-1/2 -translate-y-1/2"
-            >
-              <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
-            </button>
           </div>
 
           {/* Drawer / Panel for advanced filters */}
