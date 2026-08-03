@@ -70,10 +70,34 @@ jobs:
           PORT="${VPS_PORT:-22}"
           # $HOME (not ~) — a tilde inside a quoted string is NOT expanded, which
           # would make ssh look for a literal "~/.ssh" path and silently skip the key.
-          SSHOPTS="-i $HOME/.ssh/id_deploy -p $PORT -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          # ControlMaster multiplexes every later ssh/rsync over ONE TCP connection.
+          # Without it this step opens ~7 separate connections in a few seconds,
+          # which reads like a brute-force burst to fail2ban and to aaPanel's SSH
+          # protection — and a ban shows up here as a bare "Connection timed out".
+          SSHOPTS="-i $HOME/.ssh/id_deploy -p $PORT -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPath=/tmp/ssh-deploy-%C -o ControlPersist=120s"
 
           echo "== preflight: confirm SSH login =="
-          ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "echo connected as \$(whoami)"
+          # Retry with backoff: a timeout here is usually transient (a rate-limit
+          # window expiring), and failing the whole deploy on the first one means
+          # re-running by hand for no reason.
+          CONNECTED=""
+          for attempt in 1 2 3; do
+            if ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "echo connected as \$(whoami)"; then
+              CONNECTED=yes; break
+            fi
+            [ "$attempt" = 3 ] && break
+            echo "attempt $attempt failed — retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          if [ -z "$CONNECTED" ]; then
+            echo "Could not open an SSH session to the VPS after 3 attempts."
+            echo "The box itself may be fine — check that it is not the SSH path alone:"
+            echo "  * fail2ban:  fail2ban-client status sshd"
+            echo "  * firewall:  iptables -L INPUT -n | head -30"
+            echo "  * sshd up:   systemctl status sshd; ss -ltnp | grep ':$PORT '"
+            echo "Nothing was transferred and the running app is untouched."
+            exit 1
+          fi
 
           echo "== rsync bundle =="
           ssh $SSHOPTS "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_APP_PATH'"
